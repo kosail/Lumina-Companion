@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
@@ -35,6 +36,8 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
+            implementation(libs.koin.android)
+            implementation(libs.ktor.client.okhttp)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -45,11 +48,24 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
-            implementation(libs.miuiux.core)
-            implementation(libs.miuiux.blur)
-            implementation(libs.miuiux.icons)
-            implementation(libs.miuiux.preference)
-            implementation(libs.miuiux.squircle)
+            implementation(libs.miuix.core)
+            implementation(libs.miuix.blur)
+            implementation(libs.miuix.icons)
+            implementation(libs.miuix.preference)
+            implementation(libs.miuix.squircle)
+            implementation(libs.miuix.navigation)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.koin.core)
+            implementation(libs.koin.compose)
+            implementation(libs.koin.compose.viewmodel)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.network)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.ktor.client.logging)
+        }
+        jvmMain.dependencies {
+            implementation(libs.ktor.client.okhttp)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
