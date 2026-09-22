@@ -31,7 +31,7 @@
 | `CHANGELOG.md` | Append-only machine-readable history (`CHG-FE-NNNN`) |
 | `../Lumina-BETA-RPI-2W/docs/API_CONTRACT.md` | **External, read-only** wire contract (proto 1) |
 | `../Lumina-BETA-RPI-2W/docs/COMPANION.md` | Runtime-side companion architecture (context only) |
-| `../Lumina/Testing_server/` | Mock agent server used to develop/test the app |
+| `../Testing_server/` | Mock agent server used to develop/test the app |
 
 ---
 
@@ -70,6 +70,9 @@ using it. If neither can be verified, or your confidence is below `0.80`, stop a
   `UdpSocket` for UDP); JSON via **kotlinx-serialization-json 1.11.0**. The `ktor-client-*` HTTP
   artifacts are kept for later but are **not** the raw transport (FE-INV-020/022/024).
 - **DI:** **Koin 4.2.2** (`koin-core`, `koin-compose`, `koin-compose-viewmodel`, `koin-android`).
+- **Persistence:** **multiplatform-settings 1.3.0** + **multiplatform-settings-no-arg 1.3.0** for the
+  key-value config store (host/ports/token). Construct with the no-arg `Settings()` in `commonMain`;
+  `MapSettings` is the test fake. See `docs/API_VERIFICATION.md` §3.5 (FE-INV-020).
 - **Design language:** **MIUI**, via MiuiX KMP (`top.yukonga.miuix.kmp`, all modules). Every UI
   element uses a MiuiX component; default Compose/Material components are allowed **only** where
   MiuiX has no equivalent (FE-INV-025).
@@ -269,7 +272,7 @@ it must be added in the runtime repo first (FE-INV-004/030).
 - **Pure logic is fully tested:** protocol encode/decode, sentinel handling, base64, status
   reduction, command builders, error mapping.
 - **Fakes over mocks:** every interface has a fake in `commonTest`/`data/`.
-- **Integration** is exercised against the mock agent server in `../Lumina/Testing_server/`.
+- **Integration** is exercised against the mock agent server in `../Testing_server/`.
 - A change is not "done" until it compiles and its tests pass.
 
 ```bash
@@ -286,7 +289,7 @@ it must be added in the runtime repo first (FE-INV-004/030).
 ./gradlew check
 
 # Mock agent server (separate terminal; Node + tsx)
-cd ../Lumina/Testing_server && npm run verify   # or: npm run dev
+cd ../Testing_server && npm run verify   # or: npm run dev
 ```
 
 ---

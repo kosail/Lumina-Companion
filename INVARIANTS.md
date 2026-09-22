@@ -178,6 +178,32 @@ styling work, and makes the app feel inconsistent across screens.
 
 ---
 
+### FE-INV-026 — The UI is modern, simple, spacious and highly accessible  🟥 `HARD`
+
+**Statement.** Every screen must let a first-time user — including elderly and low-vision people —
+find and operate each element without training:
+
+1. **Modern, simple, uncluttered.** One primary purpose per screen; remove anything that does not
+   serve it.
+2. **Generous negative space.** Use dead/empty space deliberately to separate and group elements so
+   each control is easy to locate; never crowd the screen.
+3. **Big text and big icons.** Prefer large typography and large icons; keep visible text labels
+   (no icon-only controls where a label fits).
+4. **High contrast + color-coded regions.** Use color to help identify parts, always paired with
+   text/shape — never color alone (FE-INV-010.3), and meeting high-contrast guidance.
+5. **MIUI + modern guidelines.** Delivered through MiuiX (FE-INV-025), consistent with modern UI
+   and MIUI design.
+6. Touch targets stay ≥ 48 dp (FE-INV-010.2).
+
+**Rationale.** Primary users are blind/low-vision and older adults; size, space and color are
+functional aids, not polish. A dense or subtle UI is a usability defect for this audience.
+
+**Source.** Direct user instruction (2026-09-21).
+
+**Changeability.** By user approval.
+
+---
+
 ## 4. PLATFORM / BUILD invariants
 
 ### FE-INV-020 — Fixed app stack  🟥 `HARD`
@@ -195,6 +221,7 @@ styling work, and makes the app feel inconsistent across screens.
 | Transport | Ktor — raw sockets via `ktor-network` (HTTP `ktor-client-*` kept for later) | 3.6.0 |
 | JSON | kotlinx-serialization-json | 1.11.0 |
 | DI | Koin (`koin-core`, `koin-compose`, `koin-compose-viewmodel`, `koin-android`) | 4.2.2 |
+| Persistence | `multiplatform-settings` + `multiplatform-settings-no-arg` (key-value config store) | 1.3.0 |
 
 Adding any **other** dependency requires explicit user approval. Do not bump pinned versions
 without approval.
@@ -205,6 +232,11 @@ the runtime's fixed-stack rule.
 **Source.** Runtime `INV-022`; user decision (2026-09-21) approving Ktor + Koin; `libs.versions.toml`.
 
 **Changeability.** By user approval.
+
+**Amendment (CHG-FE-0006, 2026-09-21).** The user added `multiplatform-settings` **1.3.0** and
+`multiplatform-settings-no-arg` **1.3.0** (user-owned dependency change; both already in
+`shared/build.gradle.kts` `commonMain`). They are the pinned persistence layer; verification is in
+`docs/API_VERIFICATION.md` §3.5.
 
 ---
 
@@ -270,6 +302,11 @@ core feature.
 **Amendment (CHG-FE-0002, 2026-09-21).** Ktor **3.6.0** (`ktor-network` + `ktor-client-*`), Koin
 **4.2.2**, and kotlinx-serialization-json **1.11.0** are now pinned and adopted. The ongoing duty to
 verify each API used against the pinned version is governed by FE-INV-001.
+
+**Amendment (CHG-FE-0006, 2026-09-21).** `multiplatform-settings` **1.3.0** +
+`multiplatform-settings-no-arg` **1.3.0** are pinned and adopted. The Phase 0 verification of every
+pinned API (Ktor 3.6.0 sockets, serialization, Koin, MiuiX, settings, Photo Picker, `liveRegion`) is
+recorded with URL + access date in `docs/API_VERIFICATION.md`.
 
 ---
 
@@ -504,6 +541,7 @@ counts, timings), and cite the command used. Ask when confidence is below `0.80`
 | FE-INV-023 | HARD     | Build with the Gradle wrapper only |
 | FE-INV-024 | HARD     | Verify a dependency's API before adopting it |
 | FE-INV-025 | HARD     | MIUI is the app's design language |
+| FE-INV-026 | HARD     | The UI is modern, simple, spacious and highly accessible |
 | FE-INV-030 | HARD     | `API_CONTRACT.md` (proto 1) is authoritative |
 | FE-INV-031 | HARD     | Handle sentinels and liveness correctly |
 | FE-INV-032 | HARD     | Control requests are token-gated and sequential |

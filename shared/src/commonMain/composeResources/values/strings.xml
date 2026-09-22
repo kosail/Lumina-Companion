@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Default (Spanish, es-MX) user-facing strings for the companion app (FE-INV-041).
+  The app is Spanish-first, so the default locale file is Spanish. All UI text MUST live here; no
+  hardcoded user-facing literals in composables.
+-->
+<resources>
+    <!-- Bottom navigation tabs -->
+    <string name="tab_dashboard">Estado</string>
+    <string name="tab_people">Personas</string>
+    <string name="tab_settings">Ajustes</string>
+
+    <!-- Connection banner (announced via liveRegion, FE-INV-010) -->
+    <string name="conn_online">Conectado</string>
+    <string name="conn_offline">Sin conexión</string>
+    <string name="conn_incompatible">Dispositivo incompatible</string>
+    <string name="conn_connecting">Conectando…</string>
+
+    <!-- Section headers -->
+    <string name="section_device">Dispositivo</string>
+    <string name="section_performance">Rendimiento</string>
+    <string name="section_sensors">Sensores</string>
+    <string name="section_people">Personas registradas</string>
+
+    <!-- Row labels -->
+    <string name="label_running">En ejecución</string>
+    <string name="label_audio">Audio</string>
+    <string name="label_faces">Rostros</string>
+    <string name="label_uptime">Tiempo activo</string>
+    <string name="label_speed">Velocidad</string>
+    <string name="label_memory">Memoria</string>
+    <string name="label_temperature">Temperatura</string>
+    <string name="label_load">Carga</string>
+    <string name="label_volume">Volumen</string>
+    <string name="label_muted">Silenciado</string>
+    <string name="label_daynight">Día / Noche</string>
+
+    <!-- Generic values -->
+    <string name="value_unknown">—</string>
+    <string name="value_yes">Sí</string>
+    <string name="value_no">No</string>
+
+    <!-- Audio sink states (runtime.sink) -->
+    <string name="sink_ready">Listo</string>
+    <string name="sink_waiting">Esperando</string>
+    <string name="sink_absent">Ausente</string>
+
+    <!-- Day/night states -->
+    <string name="day_day">Día</string>
+    <string name="day_night">Noche</string>
+    <string name="day_unknown">Desconocido</string>
+
+    <!-- People / placeholders -->
+    <string name="people_empty">Aún no hay personas registradas</string>
+
+    <!-- People (Personas) screen -->
+    <string name="people_title">Personas</string>
+    <string name="people_refresh">Actualizar</string>
+    <string name="people_add_section">Agregar persona</string>
+    <string name="people_name_label">Nombre</string>
+    <string name="people_name_error">Escribe un nombre</string>
+    <string name="people_add_camera">Con la cámara</string>
+    <string name="people_add_photos">Desde fotos</string>
+    <string name="people_cancel">Cancelar inscripción</string>
+    <string name="people_runtime_down">Lúmina no está en ejecución. Inícala para continuar.</string>
+    <string name="people_no_face">No se detectó un rostro; acerca la cara a la cámara</string>
+
+    <!-- Enrollment phases and progress (announced via liveRegion) -->
+    <string name="enroll_phase_stopping">Preparando la cámara…</string>
+    <string name="enroll_phase_capturing">Capturando rostros…</string>
+    <string name="enroll_phase_starting">Reiniciando Lúmina…</string>
+    <string name="enroll_progress">Capturados %1$d de %2$d</string>
+
+    <!-- People action messages (shell snackbar; announced via liveRegion) -->
+    <string name="msg_people_refreshed">Lista actualizada</string>
+    <string name="msg_person_enrolled">Persona registrada</string>
+    <string name="msg_enroll_failed">No se pudo registrar a la persona</string>
+    <string name="msg_enroll_cancelled">Inscripción cancelada</string>
+    <string name="msg_need_name">Escribe un nombre para la persona</string>
+    <string name="msg_too_many_photos">Selecciona como máximo 5 fotos</string>
+    <string name="msg_photos_not_prepared">No se pudieron preparar las fotos</string>
+
+    <!-- Dashboard control messages (shell snackbar; announced via liveRegion) -->
+    <string name="msg_volume_changed">Volumen actualizado</string>
+    <string name="msg_muted">Silenciado</string>
+    <string name="msg_unmuted">Sonido activado</string>
+    <string name="msg_runtime_started">Lúmina iniciada</string>
+    <string name="msg_runtime_stopped">Lúmina detenida</string>
+    <string name="msg_unauthorized">Token incorrecto</string>
+    <string name="msg_busy">Hay una inscripción en curso</string>
+    <string name="msg_bad_request">Solicitud no válida</string>
+    <string name="msg_internal">Error del dispositivo</string>
+    <string name="msg_io">No se pudo conectar con el dispositivo</string>
+
+    <!-- Control section -->
+    <string name="section_control">Control</string>
+    <string name="action_start">Iniciar Lúmina</string>
+    <string name="action_stop">Detener Lúmina</string>
+    <string name="audio_not_ready">Audio no listo</string>
+    <string name="token_warning_title">Token incorrecto</string>
+    <string name="token_warning_body">Abre Ajustes y verifica el token del dispositivo.</string>
+
+    <!-- Settings (Ajustes) -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_section_connection">Conexión</string>
+    <string name="settings_host">Dirección del dispositivo</string>
+    <string name="settings_udp_port">Puerto de estado (UDP)</string>
+    <string name="settings_tcp_port">Puerto de control (TCP)</string>
+    <string name="settings_section_token">Token de control</string>
+    <string name="settings_token_hint">El token está en el dispositivo (archivo agent.token). No se comparte por la red.</string>
+    <string name="settings_token_show">Mostrar</string>
+    <string name="settings_token_hide">Ocultar</string>
+    <string name="settings_save">Guardar</string>
+    <string name="settings_saved">Ajustes guardados</string>
+    <string name="settings_error_host">Escribe una dirección</string>
+    <string name="settings_error_port">Debe ser un puerto entre 1 y 65535</string>
+</resources>
