@@ -10,6 +10,7 @@ import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readLineStrict
 import io.ktor.utils.io.writeStringUtf8
+import kotlinx.coroutines.withContext
 
 /**
  * Production [ControlConnectionFactory] backed by Ktor's raw TCP API (`ktor-network`).
@@ -24,9 +25,11 @@ class KtorControlConnectionFactory(
     private val selector: SelectorManager,
 ) : ControlConnectionFactory {
 
-    override suspend fun open(endpoint: Endpoint): ControlConnection {
-        val socket = aSocket(selector).tcp().connect(endpoint.host, endpoint.tcpPort)
-        return KtorControlConnection(socket)
+    override suspend fun open(endpoint: Endpoint): ControlConnection = withContext(ioDispatcher) {
+        // Resolve the gateway and connect off the caller's thread. On Android the caller can be the
+        // main thread (a command launched from viewModelScope), and main-thread address resolution
+        // throws NetworkOnMainThreadException — the Phase 6 device bug (FE-INV-052, CHG-FE-0027).
+        KtorControlConnection(aSocket(selector).tcp().connect(endpoint.host, endpoint.tcpPort))
     }
 }
 
@@ -39,7 +42,9 @@ private class KtorControlConnection(private val socket: Socket) : ControlConnect
     private val input: ByteReadChannel = socket.openReadChannel()
 
     override suspend fun writeLine(line: String) {
-        output.writeStringUtf8(line + "\n")
+        // Channel I/O is dispatched to the socket's own context; keep it off the caller's (Android
+        // main) thread as well (FE-INV-052, CHG-FE-0027).
+        withContext(ioDispatcher) { output.writeStringUtf8(line + "\n") }
     }
 
     /**
@@ -47,7 +52,9 @@ private class KtorControlConnection(private val socket: Socket) : ControlConnect
      * `EOFException` if the channel closes mid-line; [KtorControlClient] maps both to
      * `ControlResult.Io`. A clean EOF returns `null`.
      */
-    override suspend fun readLine(): String? = input.readLineStrict(limit = MAX_LINE_BYTES)
+    override suspend fun readLine(): String? = withContext(ioDispatcher) {
+        input.readLineStrict(limit = MAX_LINE_BYTES)
+    }
 
     override fun close() {
         socket.close()

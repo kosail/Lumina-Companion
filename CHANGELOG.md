@@ -981,4 +981,674 @@
   follow_up: >-
     Re-run ./gradlew :shared:allTests :androidApp:assembleDebug (expect 313 tests green: 144 commonTest
     x 2 targets + 25 jvmTest-only). No production code changed.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0019 — Phase 4 (people + enrollment) formally closed
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0019
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: chore
+  status: applied
+  invariants:
+    - FE-INV-010
+    - FE-INV-020
+    - FE-INV-025
+    - FE-INV-026
+    - FE-INV-033
+    - FE-INV-050
+    - FE-INV-051
+    - FE-INV-052
+    - FE-INV-061
+    - FE-INV-062
+  supersedes: null
+  summary: >-
+    Closed Phase 4. User-run gate green: ./gradlew :shared:allTests = 313 tests (144 commonTest methods
+    x 2 targets = 288, plus 25 jvmTest-only methods), and :androidApp:assembleDebug compiles cleanly
+    with no warnings. Desktop target verified end to end by the user against ../Testing_server: people
+    list + refresh, camera enrollment with progress, cancel on a second connection, photo enrollment
+    via the Swing file chooser, and the "Start Lúmina" recovery path. Marked Phase 4 COMPLETE in
+    PLAN.md and closed the API_VERIFICATION §8 at-first-compile caveats.
+  rationale: >-
+    FE-INV-061 requires a CHG-FE entry per phase close; FE-INV-062 requires reporting the measured gate
+    result (313 green, taken from the pasted gate output) rather than an impression. This closure wraps
+    the Phase 4 work recorded in CHG-FE-0016 (impl), CHG-FE-0017 (adversarial second-pass fixes) and
+    CHG-FE-0018 (test-only fix for the DeviceRepositorySharingTest hang). Deliberately deferred to
+    Phase 5, not blockers: the full enrollment-announcement overhaul (progress + off-tab; TODO(ui) in
+    PeopleScreen), EXIF orientation handling, DeviceRepositoryImpl shareIn hardening, and a manual
+    device run of the Android Photo Picker (verified by compile and by the desktop file chooser, but
+    not yet on a handset). User explicitly approved recording these as Phase 5 residual.
+  files:
+    - Lumina-BETA-ANDROID/PLAN.md
+    - Lumina-BETA-ANDROID/docs/API_VERIFICATION.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Phase 5 (hardening + accessibility) is NOT started (user instruction). Entry items: full
+    enrollment-announcement overhaul, EXIF orientation, shareIn hardening, a manual TalkBack pass, the
+    PLAN §10 checklist, user messaging for transport Malformed/UnsupportedProto, a SettingsStoreImpl
+    test via MapSettings, a manual device run of the Android Photo Picker, and final cleanup of
+    miuix-nav if still unused (CHG-FE-0007).
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0020 — Phase 5 resilience fixes: no startup offline flash; incompatible stays live
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0020
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: fix
+  status: applied
+  invariants:
+    - FE-INV-010
+    - FE-INV-031
+    - FE-INV-052
+    - FE-INV-061
+    - FE-INV-062
+  supersedes: null
+  summary: >-
+    Fixed two resilience defects found in the Phase 5 audit. (R1) KtorTelemetrySource.session seeded
+    lastArrivalMs = null, so reduceLiveness(null, now) made the first 250 ms ticker pass emit Offline
+    before any datagram was expected: the UI showed/announced "Sin conexión" on startup, contradicting
+    DeviceRepositoryImpl's KDoc. It now seeds lastArrivalMs at connect time, so offline follows 5 s of
+    silence. (R2) An unsupported-proto frame did not refresh liveness, so the ticker overwrote the
+    "Dispositivo incompatible" banner with Offline within one tick; a frame the device did send now
+    refreshes liveness (only undecodable garbage does not).
+  rationale: >-
+    FE-INV-031 defines offline as "no status for >= 5 s", and the timer must run from connection
+    time; treating "no frame yet" as offline was a false positive (and a confusing TalkBack
+    announcement, FE-INV-010). An incompatible device is present and sending frames, so it must stay
+    live; only a datagram we cannot parse at all is ignored. Tests added: no early Offline; Offline at
+    exactly 5 s with no frames; Offline->Online recovery; incompatible frame keeps liveness and expires
+    5 s after it stops; socket failure -> Offline -> 1 s backoff -> reconnect -> Online (virtual time);
+    a stalled enrollment stream ends with Failure(Io) via the 30 s read watchdog; and the shared
+    telemetry flow resubscribes after the WhileSubscribed stop timeout.
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/transport/KtorTelemetrySource.kt
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/transport/TelemetrySourceTest.kt
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/transport/TransportFakes.kt
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/transport/ControlClientEnrollTest.kt
+    - Lumina-BETA-ANDROID/shared/src/jvmTest/kotlin/com/korealm/lumina/data/DeviceRepositorySharingTest.kt
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    No behavior change for malformed datagrams (still silently dropped, by design). Re-run
+    ./gradlew :shared:allTests and the desktop loop; the startup must no longer flash "Sin conexión"
+    and the incompatible banner must stay stable.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0021 — Phase 5 accessibility pass + shell enrollment announcements
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0021
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: impl
+  status: applied
+  invariants:
+    - FE-INV-010
+    - FE-INV-025
+    - FE-INV-026
+    - FE-INV-051
+    - FE-INV-060
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    Accessibility pass. Extracted the duplicated InfoRow and TokenWarning into ui/components/;
+    InfoRow now uses Modifier.semantics(mergeDescendants = true) so a screen reader reads
+    "etiqueta: valor" as one focus stop instead of two. Added a shell-level EnrollmentStatusLine shown
+    while an enrollment runs and the Personas tab is not composed, so phase changes are announced on
+    every tab (closes the TODO(ui) from CHG-FE-0017); phaseLabel/progressFraction moved there and the
+    Personas card keeps the detailed view + cancel. AppRoot now lays out a Column with the optional
+    status line plus the active screen (weight(1f)). Added docs/ACCESSIBILITY.md: the FE-INV-010/026
+    checklist, a per-screen semantics/announcements inventory, the FE-INV-025 fallback register, and a
+    step-by-step manual TalkBack script.
+  rationale: >-
+    FE-INV-010.6 requires enrollment progress to be announced, not only drawn; previously the
+    liveRegion nodes lived only in PeopleScreen, so switching tabs silenced them. A visible shell line
+    (rather than a hidden node) avoids relying on unverified off-screen semantics. FE-INV-060 requires
+    a durable audit record; docs/ACCESSIBILITY.md is it. No Material3 is used; the only fallbacks are
+    the platform pickers, liveRegion semantics, and Compose foundation layout (documented).
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/components/InfoRow.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/components/TokenWarning.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/people/EnrollmentStatusLine.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/people/PeopleScreen.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/dashboard/DashboardScreen.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/AppRoot.kt
+    - Lumina-BETA-ANDROID/docs/ACCESSIBILITY.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Manual TalkBack pass (docs/ACCESSIBILITY.md §5) is the user gate; verify the token-reveal
+    TextButton target and Slider/Switch label association there before changing them.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0022 — Phase 5 dependencies: add test-only settings fake, remove unused miuix-nav
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0022
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: decision
+  status: applied
+  invariants:
+    - FE-INV-020
+    - FE-INV-050
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    User-approved dependency changes. Added com.russhwolf:multiplatform-settings-test:1.3.0 to
+    shared/commonTest (test-only) so SettingsStoreImpl can be tested with MapSettings; added
+    SettingsStoreImplTest (defaults, endpoint/token round-trip, partial seed keeps port defaults),
+    closing a gap open since Phase 2. Removed the unused top.yukonga.miuix.kmp:miuix-nav from the
+    version catalog and shared/commonMain (never imported; obligation from CHG-FE-0007). Kept
+    miuix-preference/miuix-squircle (unused, retained) and miuix-blur (manifest overrideLibrary).
+  rationale: >-
+    FE-INV-020 requires approval for any dependency change; the user approved the test-only artifact
+    and the removal in Phase 5. MapSettings is the standard in-memory Settings fake and avoids
+    hand-implementing the whole Settings interface. Removing miuix-nav shrinks the dependency surface
+    without affecting behavior (NavigationBar comes from miuix-ui).
+  files:
+    - Lumina-BETA-ANDROID/gradle/libs.versions.toml
+    - Lumina-BETA-ANDROID/shared/build.gradle.kts
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/data/SettingsStoreImplTest.kt
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Confirm multiplatform-settings-test resolves and MapSettings compiles at first build; if the
+    artifact name differs, re-verify (API_VERIFICATION §9.4).
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0023 — Phase 5 EXIF orientation for photo enrollment (Android)
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0023
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: impl
+  status: applied
+  invariants:
+    - FE-INV-001
+    - FE-INV-033
+    - FE-INV-050
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    Photo enrollment now applies EXIF orientation before scaling on Android. Added the pure
+    data/ImageOrientation.kt (ImageOrientation/ImageFlip + imageOrientationFromExif mapping all 8
+    values, unknown -> Normal) with ImageOrientationTest; PlatformImagePreparer.android.kt reads
+    android.media.ExifInterface(ByteArrayInputStream(raw)) and applies rotation/mirror via a Matrix
+    before the existing downscale/JPEG step, recycling each intermediate bitmap. The JVM preparer
+    documents that it does not apply EXIF (no JDK reader; desktop dev loop only).
+  rationale: >-
+    FE-INV-033 controls size/format, but a portrait phone photo decoded by BitmapFactory comes out
+    rotated, which can make face enrollment fail. Keeping the value->transform mapping pure and in
+    common code makes it unit-testable with no device; the numeric EXIF constants are recorded at
+    confidence 0.85 in API_VERIFICATION §9.1 and must be confirmed at first compile (FE-INV-001).
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/data/ImageOrientation.kt
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/data/ImageOrientationTest.kt
+    - Lumina-BETA-ANDROID/shared/src/androidMain/kotlin/com/korealm/lumina/data/PlatformImagePreparer.android.kt
+    - Lumina-BETA-ANDROID/shared/src/jvmMain/kotlin/com/korealm/lumina/data/PlatformImagePreparer.jvm.kt
+    - Lumina-BETA-ANDROID/docs/API_VERIFICATION.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Confirm android.media.ExifInterface's InputStream constructor and constants at first compile.
+    Android picker + EXIF runtime path still needs a device run (docs/ACCESSIBILITY.md §6).
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0024 — Phase 5 second-pass review fixes (EXIF order, liveRegion placement)
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0024
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: fix
+  status: applied
+  invariants:
+    - FE-INV-001
+    - FE-INV-010
+    - FE-INV-033
+    - FE-INV-050
+    - FE-INV-060
+    - FE-INV-061
+    - FE-INV-062
+  supersedes: null
+  summary: >-
+    Adversarial second pass over the Phase 5 code. Fixed: (F1) the Android EXIF transform applied the
+    mirror before the rotation (matrix.postScale then postRotate), which swapped EXIF orientations 5
+    (transpose) and 7 (transverse). ImageOrientation is now an ordered ImageOperation list (Rotate
+    then Mirror for 5/7) and the Android actual applies it in order; ImageOrientationTest asserts the
+    order so it cannot regress. (F2) liveRegion was set on the container Card in the new
+    EnrollmentStatusLine and in both ConnectionBanners; it is now on the changing phase/label Text,
+    since Compose announces the node whose content changed (a card-level liveRegion is ignored, or
+    spams if the card merges descendants). (F3) removed the stale TODO in PeopleScreen referencing the
+    enrollment-announcement overhaul implemented in CHG-FE-0021. (F4) marked InfoRow/TokenWarning
+    internal (module-only use). (F5) the stalled-stream test now asserts the written start line.
+  rationale: >-
+    F1 was a genuine wrong-output bug: S∘R vs R∘S differ for the transpose cases (5 = rotate 90 then
+    mirror horizontal; 7 = rotate 270 then mirror horizontal). The prior pure test only checked the
+    (rotation, flip) pair, so it gave false confidence; making the order data makes it testable
+    (FE-INV-001/062). F2 is an accessibility correctness fix (FE-INV-010.6): the people card already
+    put liveRegion on its phase text, and the new shell line plus the banners did not. No behavior
+    change for the common rotate-only orientations (3/6/8) or the single-axis mirrors (2/4).
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/data/ImageOrientation.kt
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/data/ImageOrientationTest.kt
+    - Lumina-BETA-ANDROID/shared/src/androidMain/kotlin/com/korealm/lumina/data/PlatformImagePreparer.android.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/people/EnrollmentStatusLine.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/people/PeopleScreen.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/dashboard/DashboardScreen.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/components/InfoRow.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/components/TokenWarning.kt
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/transport/ControlClientEnrollTest.kt
+    - Lumina-BETA-ANDROID/docs/API_VERIFICATION.md
+    - Lumina-BETA-ANDROID/docs/ACCESSIBILITY.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Re-run ./gradlew check :androidApp:assembleDebug, then the desktop loop. The manual TalkBack pass
+    (docs/ACCESSIBILITY.md §5) confirms F2; the Android EXIF runtime path still needs the device run.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0025 — Phase 5 (hardening + accessibility) formally closed
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0025
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: chore
+  status: applied
+  invariants:
+    - FE-INV-001
+    - FE-INV-010
+    - FE-INV-020
+    - FE-INV-025
+    - FE-INV-026
+    - FE-INV-031
+    - FE-INV-033
+    - FE-INV-050
+    - FE-INV-051
+    - FE-INV-052
+    - FE-INV-061
+    - FE-INV-062
+  supersedes: null
+  summary: >-
+    Closed Phase 5. User-run gate green: ./gradlew check :androidApp:assembleDebug = 336 tests (155
+    commonTest methods x 2 targets = 310, plus 26 jvmTest-only methods) with a clean Android compile,
+    and the desktop target verified end to end against ../Testing_server. Marked Phase 5 COMPLETE in
+    PLAN.md and confirmed the at-first-compile items in API_VERIFICATION §9. The manual TalkBack/device
+    checks are deferred to Phase 6 by explicit user decision.
+  rationale: >-
+    FE-INV-061 requires a CHG-FE entry per phase close; FE-INV-062 requires the measured result (336
+    green, Android compile clean, desktop verified) rather than an impression. Phase 5 delivered:
+    resilience correctness + matrix coverage (CHG-FE-0020: no startup offline flash, incompatible
+    stays live, backoff/reconnect/shareIn/watchdog tests), the accessibility pass and shell enrollment
+    announcements (CHG-FE-0021), the approved dependency changes + SettingsStoreImpl test
+    (CHG-FE-0022), Android EXIF orientation (CHG-FE-0023), and the second-pass fixes (CHG-FE-0024:
+    ordered-ops EXIF fix, liveRegion on the changing node). AGENTS §13 Definition of Done: builds
+    (:shared:allTests + :androidApp:assembleDebug + desktop) PASS; pure logic unit-tested with fakes
+    PASS; accessibility code-level PASS / device TalkBack PENDING (Phase 6); MiuiX used everywhere with
+    the fallback register documented (docs/ACCESSIBILITY.md §7) PASS; immutable ViewModel state and
+    unidirectional flow PASS; comments and Spanish string resources PASS; CHANGELOG entry present PASS;
+    no unapproved dependency (only the user-approved test-only multiplatform-settings-test added,
+    miuix-nav removed) PASS; runtime repository untouched PASS. Deliverables the gate did not cover are
+    recorded as Phase 6 residual rather than claimed.
+  files:
+    - Lumina-BETA-ANDROID/PLAN.md
+    - Lumina-BETA-ANDROID/docs/API_VERIFICATION.md
+    - Lumina-BETA-ANDROID/docs/ACCESSIBILITY.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Phase 6 (integration validation + docs) is NOT started. Residual items to close there: the manual
+    TalkBack pass + PLAN §10 device items (docs/ACCESSIBILITY.md §5), the Android Photo Picker runtime
+    path, the Android EXIF runtime path, and the end-to-end user transcript. miuix-preference /
+    miuix-squircle remain declared-but-unused (retained by user decision).
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0026 — Phase 6 prep: align the Android default host; docs + validation transcript
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0026
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: fix
+  status: applied
+  invariants:
+    - FE-INV-034
+    - FE-INV-041
+    - FE-INV-053
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    Phase 6 preparation. (F1) The Android default gateway host was 10.0.2.2 (the emulator alias),
+    contradicting FE-INV-034 / AGENTS §10, which state the product default is the hotspot gateway
+    10.42.0.1 and list 10.0.2.2 only under "host mapping for development". Changed
+    PlatformDefaults.android.kt to 10.42.0.1 and updated the PlatformDefaults.kt KDoc; the desktop
+    default stays 127.0.0.1 (dev-only target). (F2) README documented a non-existent
+    `:desktopApp:hotRun` task (no hot-reload plugin is applied) - removed, and the Android install
+    command added. (F3/F4) README host table corrected, the physical-device UDP note added (adb
+    reverse is TCP-only), the full mock scenario list documented, and the docs/ links added. Added
+    docs/VALIDATION.md, the end-to-end transcript (desktop + physical Android device) covering the
+    PLAN §9 matrix, enrollment, the TalkBack pass, the Android picker and EXIF.
+  rationale: >-
+    FE-INV-002 makes INVARIANTS.md the highest authority; FE-INV-034/AGENTS §10 specify 10.42.0.1 as
+    the gateway default, so the code now matches instead of silently deviating (FE-INV-061: the change
+    is logged). The dev mappings remain available by editing Ajustes, as the invariant intends. The
+    README corrections remove a broken command and a default-host contradiction, and record the
+    UDP/adb-reverse limitation a physical-device run hits. docs/VALIDATION.md is the artifact the
+    Phase 6 gate ("user-confirmed end-to-end transcript") requires.
+  files:
+    - Lumina-BETA-ANDROID/shared/src/androidMain/kotlin/com/korealm/lumina/data/PlatformDefaults.android.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/data/PlatformDefaults.kt
+    - Lumina-BETA-ANDROID/README.md
+    - Lumina-BETA-ANDROID/docs/VALIDATION.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Run the gate: ./gradlew :shared:allTests :androidApp:assembleDebug, then docs/VALIDATION.md against
+    ../Testing_server on desktop + a physical Android device. On green, append the Phase 6 closure
+    entry and mark PLAN.md Phase 6 complete. Testing_server is retained (user decision).
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0027 — fix Android control commands failing on the main thread (FE-INV-052)
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0027
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: fix
+  status: applied
+  invariants:
+    - FE-INV-001
+    - FE-INV-022
+    - FE-INV-050
+    - FE-INV-052
+    - FE-INV-053
+    - FE-INV-061
+    - FE-INV-062
+  supersedes: null
+  summary: >-
+    Fixed the physical-device bug where every control command ("Detener Lúmina", volume, enrollment)
+    returned "No se pudo conectar con el dispositivo" (ControlResult.Io) while telemetry and the mock's
+    HTTP admin worked. Root cause: control commands are launched from viewModelScope (= Dispatchers.Main
+    on Android) and KtorControlConnectionFactory.open resolved the gateway address / opened the socket
+    on the caller's thread, so the app threw NetworkOnMainThreadException before any TCP SYN (the mock
+    logged no control connection). Telemetry was unaffected because it runs on the injected
+    Dispatchers.Default scope. Added expect val ioDispatcher (actual = Dispatchers.IO on jvmMain and
+    androidMain, since Dispatchers.IO is not in the KMP common API); request/cancelEnrollment now run in
+    withContext(ioDispatcher), enrollmentStream uses .flowOn(ioDispatcher), and the connection factory
+    open is wrapped too. Added a jvmTest (ControlClientDispatcherTest) that asserts the socket is not
+    opened on the caller's thread, and a temporary host/port diagnostic log (never the token).
+  rationale: >-
+    FE-INV-052 is explicit: "Sockets and disk/IO work run on Dispatchers.IO; never block the main
+    thread." The control path violated it (the data layer's telemetry path did not, which is why only
+    commands failed). The bug was invisible on desktop because the Swing main dispatcher does not
+    enforce Android's NetworkOnMainThreadException, and invisible to unit tests because they use fakes
+    and the test dispatcher; only the Phase 6 physical-device run exposed it (FE-INV-062: the mock
+    console showed no control connection while UDP subscribe traffic arrived). The diagnostic log
+    records host/port only, never the token (FE-INV-053), and is marked TODO for removal after device
+    validation.
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/transport/Dispatchers.kt
+    - Lumina-BETA-ANDROID/shared/src/jvmMain/kotlin/com/korealm/lumina/transport/Dispatchers.jvm.kt
+    - Lumina-BETA-ANDROID/shared/src/androidMain/kotlin/com/korealm/lumina/transport/Dispatchers.android.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/transport/KtorControlClient.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/transport/KtorControlConnection.kt
+    - Lumina-BETA-ANDROID/shared/src/jvmTest/kotlin/com/korealm/lumina/transport/ControlClientDispatcherTest.kt
+    - Lumina-BETA-ANDROID/docs/API_VERIFICATION.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Rebuild + adb install -r, then repeat docs/VALIDATION.md on the physical device: the mock must log
+    "control connection from <phone-ip>" and the commands must succeed; check adb logcat for the
+    [Lumina] diagnostic if not. Remove the three TODO(transport) diagnostic println lines once verified.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0028 — Phase 6 (integration validation + docs) formally closed
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0028
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: chore
+  status: applied
+  invariants:
+    - FE-INV-010
+    - FE-INV-020
+    - FE-INV-025
+    - FE-INV-026
+    - FE-INV-033
+    - FE-INV-050
+    - FE-INV-051
+    - FE-INV-052
+    - FE-INV-061
+    - FE-INV-062
+  supersedes: null
+  summary: >-
+    Closed Phase 6. User-run gate green: ./gradlew check :androidApp:assembleDebug = 337 tests (155
+    commonTest methods x 2 targets = 310, plus 27 jvmTest-only methods) with a clean Android build;
+    the desktop target and a physical Android device (with TalkBack) were verified end to end against
+    ../Testing_server. The phase's device bug (all control commands failing on the main thread) was
+    found, fixed and confirmed on device (CHG-FE-0027), and its temporary diagnostics removed. Filled
+    the end-to-end transcript in docs/VALIDATION.md (37/37 PASS), ticked PLAN.md §10, and marked
+    Phase 6 COMPLETE.
+  rationale: >-
+    FE-INV-061 requires a CHG-FE entry per phase close; FE-INV-062 requires the measured result (337
+    green, clean Android build, device verified) rather than an impression. The physical-device run
+    was decisive: it exposed the FE-INV-052 violation (control socket work on Dispatchers.Main) that
+    neither the desktop target nor the unit tests could surface; the fix and a regression test
+    (ControlClientDispatcherTest) are recorded in CHG-FE-0027. The TalkBack pass confirms the
+    accessibility requirements (FE-INV-010/026); the observed mixed Spanish/English phrasing is
+    TalkBack's own hint string following the device language, not app text. No defects remain open.
+    Non-blocking residuals (not blockers, recorded for the future): no dark/high-contrast theme
+    variant; TalkBack hint language is device-owned; Testing_server retained for demos; the unused
+    miuix-preference/miuix-squircle modules and the TODO(di) desktop ViewModel wiring are unchanged.
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/transport/KtorControlClient.kt
+    - Lumina-BETA-ANDROID/PLAN.md
+    - Lumina-BETA-ANDROID/docs/VALIDATION.md
+    - Lumina-BETA-ANDROID/docs/ACCESSIBILITY.md
+    - Lumina-BETA-ANDROID/docs/API_VERIFICATION.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    All phases of PLAN.md are complete. Retained: ../Testing_server (demos), miuix-preference /
+    miuix-squircle, and the TODO(di) desktop ViewModel wiring. Optional future work: a
+    high-contrast/dark theme variant, an app locale declaration so TalkBack prefers Spanish hints, and
+    a final dependency cleanup.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0029 — brand header (LogoLong) in the app shell
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0029
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: impl
+  status: applied
+  invariants:
+    - FE-INV-001
+    - FE-INV-010
+    - FE-INV-025
+    - FE-INV-026
+    - FE-INV-060
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    Added a brand header to the app shell. New ui/components/BrandHeader.kt renders the user-supplied
+    shared/src/commonMain/composeResources/drawable/LogoLong.webp (1920 x 637, ~3.01:1) via
+    painterResource + foundation Image with ContentScale.Fit, contentDescription = null (decorative),
+    full width and height capped at 120 dp so it stays a slim banner on large windows. AppRoot renders
+    it as the first child of the shell content Column, above the enrollment status line and the tab
+    screens, so it is visible and fixed on Dashboard, Personas and Ajustes while each screen scrolls
+    beneath it.
+  rationale: >-
+    FE-INV-026 asks for modern, spacious branding; a single shell-level header avoids duplicating the
+    image per screen. contentDescription = null keeps it out of TalkBack (FE-INV-010.5: decorative
+    elements excluded) because the app name is already announced by the tab labels/titles. foundation
+    Image/ContentScale are Compose primitives (no MiuiX image component exists), so FE-INV-025 is
+    unaffected. The webp is decoded by the platform (Android BitmapFactory, desktop Skia); recorded in
+    API_VERIFICATION §11 to confirm at first run (FE-INV-001), with a PNG export as the fallback.
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/components/BrandHeader.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/AppRoot.kt
+    - Lumina-BETA-ANDROID/docs/API_VERIFICATION.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Build and run desktop + device to confirm LogoLong renders (webp decode) and that the header does
+    not crowd the top; tune the 120 dp cap / padding if desired.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0030 — localization scope: English and indigenous locales deliberately deferred
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0030
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: decision
+  status: applied
+  invariants:
+    - FE-INV-041
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    Evaluated adding a second locale and decided against it. (a) English: adding values-en would
+    change the rank-1 FE-INV-041 ("all user-facing text is Spanish es-MX"), and the English build is
+    not demonstrated as improving the primary (blind, Spanish-first) audience, so the user chose to
+    keep Spanish-only for the demo. (b) Indigenous (Mayan/Nahuatl): technically feasible via BCP-47
+    resource qualifiers (values-b+nah / values-b+yua) plus Android per-app language, but the core
+    users rely on TalkBack, whose TTS engines have no Mayan/Nahuatl voices, so screen-reader output
+    would be mispronounced Spanish/English; reliable translation also needs native-speaker review.
+    Recorded as a roadmap item instead (the product brief already lists "future support for
+    indigenous languages").
+  rationale: >-
+    FE-INV-041 is a SCOPE invariant; per the change protocol it may not be changed silently, and the
+    user explicitly chose not to amend it. FE-INV-061 requires logging the decision so a future agent
+    does not re-derive it. No code changed. If i18n is revisited, CMP supports language qualifiers with
+    the unqualified values/ as the Spanish fallback (verified in the CMP resources docs), and an
+    indigenous locale additionally depends on a bundled on-device TTS voice.
+  files:
+    - Lumina-BETA-ANDROID/docs/API_VERIFICATION.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    If a second locale is wanted later, add values-<lang>/strings.xml (no code change) and, for Android
+    13+, a localeConfig; treat a Mayan/Nahuatl locale as blocked on a TTS voice for TalkBack.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0031 — dark mode (follows the system) + dark logo
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0031
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: impl
+  status: applied
+  invariants:
+    - FE-INV-001
+    - FE-INV-025
+    - FE-INV-026
+    - FE-INV-060
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    Added dark-mode support. AppTheme now selects the MiuiX palette from the system theme
+    (isSystemInDarkTheme -> darkColorScheme() else lightColorScheme(), remembered per mode), and
+    BrandHeader renders the user-supplied LogoLongDarkMode.webp in dark mode and LogoLong.webp in
+    light mode. Both logos are 1920 x 637 and stay decorative (contentDescription null).
+  rationale: >-
+    The default MiuiX light scheme met FE-INV-026's contrast rule, but a dark variant was a recorded
+    accessibility gap (ACCESSIBILITY.md §6); following the system is the least surprising behavior and
+    needs no extra settings UI or expect/actual. MiuiX 0.9.4 exposes lightColorScheme()/darkColorScheme()
+    and MiuixTheme(colors=...), and CMP defines the current theme via isSystemInDarkTheme() (recorded in
+    API_VERIFICATION §12.1). Visual-only change; no protocol/state impact.
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/theme/AppTheme.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/components/BrandHeader.kt
+    - Lumina-BETA-ANDROID/docs/API_VERIFICATION.md
+    - Lumina-BETA-ANDROID/docs/ACCESSIBILITY.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Confirm on desktop + device that the app follows the OS light/dark switch and shows the correct
+    logo. Optional polish: an androidApp night theme / themed window background to avoid a light flash
+    before Compose draws.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0032 — MiuiX icons across every section, row and control
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0032
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: impl
+  status: applied
+  invariants:
+    - FE-INV-001
+    - FE-INV-010
+    - FE-INV-025
+    - FE-INV-026
+    - FE-INV-060
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    Added decorative MiuiX icons throughout the UI so low-vision users can navigate by shape while
+    TalkBack users keep the (unchanged) text labels. New ui/components/SectionTitle.kt (Icon + subtitle
+    text, because MiuiX SmallTitle has no icon slot) replaces SmallTitle on all three screens; InfoRow
+    gained an optional leading icon; TokenWarning, EnrollmentStatusLine and both ConnectionBanners got
+    leading/state icons; buttons (start/stop, refresh, camera, photos, cancel, save, runtime recovery),
+    the name/host/port/token fields (leadingIcon) and the saved confirmation all carry an icon. Icons
+    are from MiuixIcons (extended + basic); every icon uses contentDescription = null.
+  rationale: >-
+    FE-INV-026 wants big, clear, recognizable controls; icons are a functional aid for partially
+    sighted users while the text labels (FE-INV-041) remain the source of truth for TalkBack, so the
+    icons must be decorative (FE-INV-010.5). FE-INV-025 keeps it MiuiX. The MiuiX icon set lacks a few
+    domain glyphs (thermometer, speedometer, device), so InfoRow icons are best-fit and are easy to
+    swap. Verified signatures in API_VERIFICATION §12.2/§12.3.
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/components/SectionTitle.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/components/InfoRow.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/components/TokenWarning.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/people/EnrollmentStatusLine.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/dashboard/DashboardScreen.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/people/PeopleScreen.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/settings/SettingsScreen.kt
+    - Lumina-BETA-ANDROID/docs/API_VERIFICATION.md
+    - Lumina-BETA-ANDROID/docs/ACCESSIBILITY.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Compile + run desktop and device: confirm every icon renders/aligned and that TalkBack still reads
+    only the labels (icons decorative). Swap any poor-fit InfoRow icon (e.g. Temperature/Info) if you
+    prefer. Confirm TextField leadingIcon at compile (API_VERIFICATION §12.3).
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0033 — fix: pad the TextField leading icons
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0033
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: fix
+  status: applied
+  invariants:
+    - FE-INV-001
+    - FE-INV-025
+    - FE-INV-026
+    - FE-INV-061
+    - FE-INV-062
+  supersedes: null
+  summary: >-
+    Fixed the cramped leading icons added in CHG-FE-0032. MiuiX TextField's chrome (v0.9.4,
+    TextFieldChrome/TextFieldDecorationBox) places the leading/trailing icon composables flush against
+    the field edges and applies its inside margin only to the text box (end padding when a leading icon
+    exists; none horizontally when both icons exist), so the icon slots must supply their own spacing.
+    The name, host, UDP, TCP and token fields now use
+    `Modifier.padding(start = TextFieldDefaults.InsideMargin.width, end = 8.dp).size(20.dp)` — 16 dp
+    from the border (the field's content margin) and an 8 dp gap before the text.
+  rationale: >-
+    The icon was visually touching the border and the text (FE-INV-026: spacious, clear controls). The
+    root cause was verified against the pinned MiuiX source (the padding logic lives in
+    TextFieldChrome), not guessed. Padding is applied before `size` so the 20 dp glyph is preserved.
+    Only the leading icons changed; the trailing token-reveal TextButton already carries button margins.
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/people/PeopleScreen.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/settings/SettingsScreen.kt
+    - Lumina-BETA-ANDROID/docs/API_VERIFICATION.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Run desktop + device: confirm the icon now sits 16 dp off the border with an 8 dp gap to the text in
+    the name, host, UDP, TCP and token fields; tune the 8 dp gap if you want more separation.
 ```

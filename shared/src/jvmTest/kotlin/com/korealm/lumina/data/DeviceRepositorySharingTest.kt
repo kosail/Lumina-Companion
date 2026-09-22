@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -49,5 +50,35 @@ class DeviceRepositorySharingTest {
         assertEquals(1, opened, "both collectors must share one upstream session")
         assertEquals(TelemetryEvent.Offline, first.last())
         assertEquals(TelemetryEvent.Offline, second.last())
+    }
+
+    @Test
+    fun resubscribesAfterTheStopTimeoutWhenCollectorsReturn() = runTest {
+        var opened = 0
+        val upstream = MutableSharedFlow<TelemetryEvent>()
+        val telemetry = object : TelemetrySource {
+            override fun status(): Flow<TelemetryEvent> = flow {
+                opened += 1
+                emitAll(upstream)
+            }
+        }
+        val repository = DeviceRepositoryImpl(telemetry, FakeControlClient(), backgroundScope)
+
+        val first = backgroundScope.launch { repository.status().collect {} }
+        runCurrent()
+        assertEquals(1, opened)
+
+        // With no collectors, `WhileSubscribed(5000)` keeps the upstream for the grace period...
+        first.cancel()
+        runCurrent()
+        advanceTimeBy(5_000)
+        runCurrent()
+        assertEquals(1, opened, "the stop timeout must not re-open the upstream on its own")
+
+        // ...then a returning collector resubscribes, so a fresh upstream session is opened.
+        val second = backgroundScope.launch { repository.status().collect {} }
+        runCurrent()
+        assertEquals(2, opened, "a returning collector must resubscribe")
+        second.cancel()
     }
 }

@@ -2,14 +2,24 @@ package com.korealm.lumina.data
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import com.korealm.lumina.protocol.RECOMMENDED_MAX_IMAGE_HEIGHT_PX
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 
 /**
- * Android [ImagePreparer]: `BitmapFactory` decode + downscale + `Bitmap.compress(JPEG)`.
+ * Android [ImagePreparer]: `BitmapFactory` decode + EXIF upright + downscale + `Bitmap.compress(JPEG)`.
  *
- * Kotlin note: `actual` provides the platform implementation of the common `expect` factory. Both
- * decode calls are CPU-bound and must run off the main thread (the repository uses
+ * The EXIF tag is read with `android.media.ExifInterface` (platform, `minSdk 24`; the `InputStream`
+ * constructor is available from API 24) and applied before scaling, so a portrait photo is not sent
+ * sideways. The pure value→transform mapping and the operation **order** live in
+ * [imageOrientationFromExif] and are unit-tested in common code; the `Matrix` application below is
+ * Android-only.
+ *
+ * Kotlin note: `actual` provides the platform implementation of the common `expect` factory. Every
+ * decode/rotate call is CPU-bound and must run off the main thread (the repository uses
  * `Dispatchers.Default`).
  */
 actual fun createImagePreparer(): ImagePreparer = AndroidImagePreparer
@@ -28,7 +38,8 @@ private object AndroidImagePreparer : ImagePreparer {
         }
         val decoded = BitmapFactory.decodeByteArray(raw, 0, raw.size, options) ?: return null
 
-        val scaled = scaleToMaxHeight(decoded, RECOMMENDED_MAX_IMAGE_HEIGHT_PX)
+        val oriented = applyExifOrientation(raw, decoded)
+        val scaled = scaleToMaxHeight(oriented, RECOMMENDED_MAX_IMAGE_HEIGHT_PX)
         return try {
             ByteArrayOutputStream().use { out ->
                 if (!scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)) {
@@ -38,11 +49,46 @@ private object AndroidImagePreparer : ImagePreparer {
                 }
             }
         } finally {
-            // Free the native pixel buffers promptly; `recycle` twice is harmless.
-            if (scaled !== decoded) scaled.recycle()
+            // Free the native pixel buffers promptly. Each `!==` guard avoids recycling a bitmap that
+            // a later stage reused; recycling twice would also be harmless.
+            if (scaled !== oriented) scaled.recycle()
+            if (oriented !== decoded) oriented.recycle()
             decoded.recycle()
         }
     }
+}
+
+/**
+ * Rotates/mirrors [bitmap] per its EXIF orientation in [raw]. Returns [bitmap] unchanged when the
+ * orientation is normal or unreadable, so the common path allocates no extra bitmap.
+ */
+private fun applyExifOrientation(raw: ByteArray, bitmap: Bitmap): Bitmap {
+    val orientation = try {
+        ExifInterface(ByteArrayInputStream(raw)).getAttributeInt(
+            ExifInterface.TAG_ORIENTATION,
+            ExifInterface.ORIENTATION_NORMAL,
+        )
+    } catch (e: IOException) {
+        // A malformed/absent EXIF block is not fatal: keep the pixels as decoded.
+        ExifInterface.ORIENTATION_NORMAL
+    }
+
+    val transform = imageOrientationFromExif(orientation)
+    if (transform.operations.isEmpty()) return bitmap
+
+    // Apply the operations **in order**. Order is significant: for EXIF 5/7 the rotation must come
+    // first, then the mirror (CHG-FE-0024).
+    val matrix = Matrix()
+    transform.operations.forEach { operation ->
+        when (operation) {
+            is ImageOperation.Rotate -> matrix.postRotate(operation.degrees.toFloat())
+            is ImageOperation.Mirror -> when (operation.flip) {
+                ImageFlip.Horizontal -> matrix.postScale(-1f, 1f)
+                ImageFlip.Vertical -> matrix.postScale(1f, -1f)
+            }
+        }
+    }
+    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
 }
 
 /** Largest power-of-two subsample that keeps the height at or above [maxHeight]. */

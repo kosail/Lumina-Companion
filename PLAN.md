@@ -171,13 +171,16 @@ TCP replies   ─▶ KtorControlClient   ─▶ ControlResult<T>     ─▶ *Rep
 | People refresh | `PullToRefresh` |
 
 **Documented fallbacks (a default component is allowed only here, and must be noted in code + a
-`CHG-FE` entry):** `LazyColumn` (MiuiX removed its own), the platform Photo Picker, Compose
-`liveRegion` semantics, and `miuix-blur` (guard to API ≥ 31; the manifest already overrides it).
+`CHG-FE` entry):** the platform Photo Picker, Compose `liveRegion` semantics, Compose foundation
+layout (`Column`/`Row`/`verticalScroll`), and the desktop Swing `JFileChooser`. The full register is
+kept in `docs/ACCESSIBILITY.md` §7. (`LazyColumn` was anticipated but the screens use a scrolling
+`Column`; `miuix-blur` is retained only because the manifest overrides its library.)
 
-**Dependency note (`miuix-nav`).** The build depends on `top.yukonga.miuix.kmp:miuix-nav:0.9.4`
-(a self-contained navigation runtime). It is **not** required for `NavigationBar` and is currently
-unused; per user decision (CHG-FE-0007) it is retained provisionally because it may be useful, and
-**must be removed in the final cleanup phase if still unused**.
+**Dependency note (`miuix-nav`).** CHG-FE-0007 retained the provisional
+`top.yukonga.miuix.kmp:miuix-nav:0.9.4` (a self-contained navigation runtime) pending a decision. It
+was never imported — `NavigationBar` comes from `miuix-ui` — so it was **removed** in Phase 5
+(CHG-FE-0022). `miuix-preference`/`miuix-squircle` remain unused-but-retained; `miuix-blur` is kept
+because the manifest overrides its library.
 
 ---
 
@@ -234,22 +237,22 @@ via `SettingsStore`, `unauthorized`/`busy`/`internal` UX, reconnect banner.
 **Tests:** command builders already covered; ViewModel tests with fake `ControlClient`/`SettingsStore`.
 **Gate:** `./gradlew :shared:allTests :androidApp:assembleDebug`.
 
-### Phase 4 — People + enrollment — 🚧 IN PROGRESS (2026-09-22)
+### Phase 4 — People + enrollment — ✅ COMPLETE (2026-09-22)
 **Deliverables:** People screen + refresh; camera enroll with progress and cancel; photo enroll via
 Photo Picker + `ImagePreparer` + `enroll.images`; "Start Lúmina" when `enroll.error.runtime !=
 "started"`; live-region announcements.
 **Tests:** enrollment state machine with fake `ControlClient`; image-prep unit tests (size/format).
 **Gate:** `./gradlew :shared:allTests :androidApp:assembleDebug`, then the mock scenarios.
 
-### Phase 5 — Hardening + accessibility
+### Phase 5 — Hardening + accessibility — ✅ COMPLETE (2026-09-22)
 **Deliverables:** full resilience-matrix coverage, TalkBack audit, MIUI fallback audit, §13 DoD
 checklist.
 **Gate:** `./gradlew check`; manual TalkBack pass on a device/emulator.
 
-### Phase 6 — Integration validation + docs
+### Phase 6 — Integration validation + docs — ✅ COMPLETE (2026-09-22)
 **Deliverables:** end-to-end vs `Testing_server` (desktop + emulator/device), README/CHANGELOG
 updates.
-**Gate:** user-confirmed end-to-end transcript.
+**Gate:** user-confirmed end-to-end transcript (`docs/VALIDATION.md`).
 
 ---
 
@@ -278,13 +281,17 @@ updates.
 
 ## 10. Accessibility and MIUI checklist (FE-INV-010/025)
 
-- [ ] Every interactive element has a Spanish `contentDescription`/semantics label.
-- [ ] Touch targets ≥ 48 dp.
-- [ ] No meaning by color alone.
-- [ ] Connection and enrollment state changes announced (`liveRegion`).
-- [ ] Logical focus order; decorative nodes excluded.
-- [ ] Large text, high contrast via theme colors.
-- [ ] MiuiX component used everywhere; every fallback documented.
+Audit record and manual test script: `docs/ACCESSIBILITY.md`. Items are ticked here only with
+evidence; the device TalkBack pass was completed on 2026-09-22 (CHG-FE-0028; results in
+`docs/VALIDATION.md` §6).
+
+- [x] Every interactive element has a Spanish `contentDescription`/semantics label. *(visible Spanish labels everywhere; verified with TalkBack)*
+- [x] Touch targets ≥ 48 dp. *(MiuiX minima + 64 dp nav items; token-reveal button verified on device)*
+- [x] No meaning by color alone. *(every colored region writes its state as text — ACCESSIBILITY.md §3)*
+- [x] Connection and enrollment state changes announced (`liveRegion`). *(per-screen banners + shell `EnrollmentStatusLine` — ACCESSIBILITY.md §4)*
+- [x] Logical focus order; decorative nodes excluded. *(screens are single reading-order columns; swipe order verified with TalkBack)*
+- [x] Large text, high contrast via theme colors. *(MiuiX text styles + `MiuixTheme.colorScheme` only; no dark variant yet)*
+- [x] MiuiX component used everywhere; every fallback documented. *(ACCESSIBILITY.md §7; no Material3 used; `miuix-nav` removed)*
 
 ---
 

@@ -80,7 +80,11 @@ class KtorTelemetrySource(
     /** One connection lifetime: subscribe, receive, and maintain until the socket fails. */
     private fun session(endpoint: Endpoint): Flow<TelemetryEvent> = channelFlow {
         val socket = sockets.open(endpoint)
-        var lastArrivalMs: Long? = null
+        // Seed liveness at connect time rather than `null`: the 5 s offline window must run from the
+        // moment the session starts, so the first ticker pass (~250 ms) does not report Offline
+        // before a datagram is even expected. `null` would read as immediately Offline
+        // (FE-INV-031; see R1 in CHG-FE-0020).
+        var lastArrivalMs: Long = clock.nowMs()
         var lastSubscribeMs = clock.nowMs()
         try {
             socket.send(subscribeLine().encodeToByteArray())
@@ -106,14 +110,20 @@ class KtorTelemetrySource(
                 val now = clock.nowMs()
                 when (val result = decodeStatus(bytes.decodeToString(), now)) {
                     is StatusDecodeResult.Decoded -> {
-                        // Only a valid `status` refreshes liveness (FE-INV-031): a garbage datagram
+                        // Only a decodable frame refreshes liveness (FE-INV-031): a garbage datagram
                         // must not keep the dashboard looking "online".
                         lastArrivalMs = now
                         send(TelemetryEvent.Online(result.status))
                     }
 
-                    is StatusDecodeResult.UnsupportedProto ->
+                    is StatusDecodeResult.UnsupportedProto -> {
+                        // The device is present — it is sending frames we merely cannot speak — so an
+                        // unsupported `proto` must still refresh liveness. Otherwise the ticker would
+                        // overwrite the "incompatible" banner with Offline within one tick (R2 in
+                        // CHG-FE-0020). Only undecodable garbage leaves liveness untouched.
+                        lastArrivalMs = now
                         send(TelemetryEvent.Incompatible(result.proto))
+                    }
 
                     is StatusDecodeResult.Malformed -> Unit
                 }

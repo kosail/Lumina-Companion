@@ -56,7 +56,6 @@ kotlin {
             implementation(libs.miuix.icons)
             implementation(libs.miuix.preference)
             implementation(libs.miuix.squircle)
-            implementation(libs.miuix.navigation)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.koin.core)
             implementation(libs.koin.compose)
@@ -75,6 +74,8 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
+            // Test-only fake settings store (MapSettings); user-approved in Phase 5 (CHG-FE-0022).
+            implementation(libs.multiplatform.settings.test)
         }
     }
 }

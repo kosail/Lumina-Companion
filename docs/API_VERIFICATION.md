@@ -242,8 +242,8 @@ the final cleanup phase if still unused.
 
 ## 4. Follow-ups (non-blocking)
 
-- [ ] **`miuix-nav` cleanup** — remove `top.yukonga.miuix.kmp:miuix-nav` from the build in the final
-  cleanup phase if it is still unused (user decision, CHG-FE-0007).
+- [x] **`miuix-nav` cleanup** — removed `top.yukonga.miuix.kmp:miuix-nav` from the build in Phase 5
+  (CHG-FE-0022); it was never imported (`NavigationBar` comes from `miuix-ui`).
 
 - [ ] **MiuiX per-component signatures** — verify each component in `PLAN.md` §6 against the docs
   immediately before first use (Phase 2+), per FE-INV-001. Record the URL + access date then.
@@ -513,3 +513,205 @@ rather than throwing.
 Phase 4 adds no dependency: `androidx.activity:activity-compose` was already in the version catalog and
 used by `:androidApp`; it is now also declared on `:shared/androidMain`. Base64 is Kotlin stdlib; the
 platform image code uses the JDK/Android SDK. The desktop `JFileChooser` is Swing (JDK).
+
+### 8.7 Confirmed by the Phase 4 gate (2026-09-22)
+
+**Gate:** `./gradlew :shared:allTests` = **313 tests green** (144 commonTest methods x 2 targets = 288,
+plus 25 jvmTest-only methods) and `:androidApp:assembleDebug` compiled with **no signature errors and
+no warnings**.
+
+This closes the at-first-compile / at-first-use caveats above, since the clean build and desktop run
+exercised every pinned signature Phase 4 uses:
+
+- §8.1 `Base64.Default.encode(ByteArray)` — compiled and covered by `ControlClientEnrollTest`.
+- §8.2 `LinearProgressIndicator(modifier, progress: Float?, colors, height)` — rendered by the people
+  screen.
+- §8.3 `TextField(value, onValueChange, …, enabled = …)` + `TextFieldDefaults.textFieldColors(…)` —
+  rendered by the people screen (name field).
+- §8.4 Android Photo Picker `PickMultipleVisualMedia(5)` + `PickVisualMediaRequest.Builder()` —
+  compiled into `:androidApp:assembleDebug`.
+- §8.5 Android `BitmapFactory`/`Bitmap.compress` and JVM `ImageIO` preparers — compiled and covered by
+  `JvmImagePreparerTest` (JVM path) and the desktop photo-enrollment run.
+
+**Residual caveat:** the Android Photo Picker's **runtime** path (system picker UI, `Uri` reads) is
+compile-verified only; it has not been exercised on a device or emulator, so its §8.4 "re-verify at
+first use" note stays open as a Phase 5/6 manual item. The desktop `JFileChooser` path was verified
+end to end by the user.
+
+---
+
+## 9. Phase 5 verifications (hardening + accessibility)
+
+`URL + access date = 2026-09-22` for every item below (FE-INV-001).
+
+### 9.1 Android `android.media.ExifInterface` — API 24+ — confidence `0.85` (re-verify at first compile)
+
+**Source:** Android platform API `developer.android.com/reference/android/media/ExifInterface`.
+
+The agent container could **not** fetch the page (network-restricted), so this is recorded at `0.85`
+from the documented platform API and **must be confirmed at first compile**. Items used:
+- `ExifInterface(InputStream)` — available since API 24 (our `minSdk`), so `ByteArrayInputStream(raw)`
+  is a valid constructor (the older API required a file path).
+- `ExifInterface.TAG_ORIENTATION`, `getAttributeInt(tag, defaultValue)`, and `ORIENTATION_NORMAL` …
+  `ORIENTATION_ROTATE_270` (values 1–8).
+
+The numeric values are mapped to a platform-independent transform by `imageOrientationFromExif`
+(`data/ImageOrientation.kt`), which is unit-tested in common code; the transform is an **ordered**
+`ImageOperation` list (rotate, then mirror, for orientations 5/7) so the application order is data
+and cannot regress (`ImageOrientationTest`, CHG-FE-0024). The `Bitmap`/`Matrix` step stays
+Android-only. If the constructor or any constant differs, **stop and re-verify** (FE-INV-001).
+
+**✅ Confirmed at first compile (2026-09-22).** The Phase 5 gate compiled `:shared`/`:androidApp` for
+Android (336 tests green, clean debug build; re-confirmed in Phase 6, §10.3), so
+`ExifInterface(ByteArrayInputStream(raw))`, `TAG_ORIENTATION`, `getAttributeInt` and the
+`ORIENTATION_*` constants all resolve. The Android EXIF **runtime** path was exercised on a physical
+device in Phase 6 (CHG-FE-0028).
+
+### 9.2 Compose `Modifier.semantics(mergeDescendants = true)` — Compose Multiplatform 1.12.0 — confidence `0.90`
+
+**Source:** Compose UI semantics API (`androidx.compose.ui.semantics.semantics`). `semantics` takes
+`mergeDescendants: Boolean = false` plus a properties lambda; used by the shared `InfoRow` so a row
+reads as one accessibility node. Re-check at first compile (the project has no Compose UI test
+dependency, so this is compile/Manual-TalkBack verified only).
+
+**✅ Confirmed at first compile (2026-09-22)** — `InfoRow` built cleanly in the Phase 5 gate. The
+TalkBack reading behavior was verified on a physical device in Phase 6 (CHG-FE-0028).
+
+### 9.3 MiuiX 0.9.4 — `TextButton` / `Slider` / `Switch` accessibility semantics — at first use
+
+The exact semantics and minimum touch-target sizes of MiuiX `TextButton`, `Slider` and `Switch` are
+not asserted here; they are covered by (a) the first compile and (b) the manual TalkBack pass
+(completed 2026-09-22 — `docs/ACCESSIBILITY.md` §5/§6, `CHG-FE-0028`). Any change to them (e.g.
+wrapping the token-reveal button in a ≥48 dp container) should re-run that device pass (FE-INV-001).
+
+### 9.4 `multiplatform-settings-test` 1.3.0 — `MapSettings` — confidence `0.90` (re-verify at first compile)
+
+**Source:** `github.com/russhwolf/multiplatform-settings` tag `v1.3.0`, module
+`multiplatform-settings-test`, package `com.russhwolf.settings`, `MapSettings`. Constructors used:
+`MapSettings()` and `MapSettings(vararg items: Pair<String, Any>)`. Added as a **test-only**
+dependency on `commonTest` (user-approved; CHG-FE-0022) to test `SettingsStoreImpl` without a device
+file store. Confirm the artifact resolves at first compile.
+
+**✅ Confirmed at first compile (2026-09-22)** — the artifact resolved and `SettingsStoreImplTest`
+passed in the Phase 5 gate (CHG-FE-0025).
+
+### 9.5 No new runtime dependencies
+
+Phase 5 adds only the test-only `multiplatform-settings-test` artifact and **removes** the unused
+`top.yukonga.miuix.kmp:miuix-nav` (CHG-FE-0022). `android.media.ExifInterface` is part of the Android
+platform; the JVM EXIF path is unchanged (no EXIF reader on the JDK).
+
+---
+
+## 10. Phase 6 verifications (integration + device fix)
+
+`URL + access date = 2026-09-22` for every item below (FE-INV-001).
+
+### 10.1 `Dispatchers.IO` via `expect`/`actual` — kotlinx-coroutines 1.11.0 — confidence `0.95`
+
+**Source:** kotlinx.coroutines `Dispatchers.IO` (JVM/Android only). It is **not** part of the Kotlin
+Multiplatform **common** API, so the shared code cannot reference it directly. `transport/Dispatchers.kt`
+declares `expect val ioDispatcher: CoroutineDispatcher`, with `actual = Dispatchers.IO` in `jvmMain`
+and `androidMain`. This gives the transport a background dispatcher for socket work that satisfies
+FE-INV-052 ("Sockets and disk/IO work run on `Dispatchers.IO`; never block the main thread") without
+deviating to `Dispatchers.Default`. Confirmed at first compile by the Phase 6 gate (CHG-FE-0027).
+
+Consequence for the device bug: control commands run from `viewModelScope` (`Dispatchers.Main` on
+Android); before the fix, Ktor's `connect(host, port)` resolved the gateway address on the main thread
+and threw `NetworkOnMainThreadException` before opening any socket — every command surfaced as
+`ControlResult.Io`. The fix wraps the socket open in `withContext(ioDispatcher)` in
+`KtorControlClient.request`, `cancelEnrollment` and `enrollmentStream`, and runs
+`KtorControlConnection.open`/`writeLine`/`readLine` on `ioDispatcher`. Only the socket open is wrapped
+in the client so the per-line `withTimeoutOrNull` watchdog keeps running on the collector's context
+(preserving virtual-time tests). A `jvmTest` (`ControlClientDispatcherTest`) asserts the socket is not
+opened on the caller's thread.
+
+### 10.2 No new dependencies
+
+Phase 6 adds no dependency: `ioDispatcher` uses the already-present kotlinx-coroutines, and the fix is
+internal to `transport/`.
+
+### 10.3 Phase 6 gate confirmed (2026-09-22)
+
+`./gradlew check :androidApp:assembleDebug` = **337 tests green** (155 commonTest × 2 + 27 jvmTest)
+with a clean Android build; the desktop target and a **physical Android device with TalkBack** were
+verified end to end against `../Testing_server`. This confirms §10.1 on device and closes the CHG-FE-0027
+investigation. Evidence: `docs/VALIDATION.md` (37/37 PASS), `CHG-FE-0028`.
+
+---
+
+## 11. Post-phase-6 additions
+
+### 11.1 WebP drawable via Compose Multiplatform resource — CMP 1.12.0 — confidence `0.90`
+
+**Item:** the brand header (CHG-FE-0029) loads
+`shared/src/commonMain/composeResources/drawable/LogoLong.webp` with
+`org.jetbrains.compose.resources.painterResource(Res.drawable.LogoLong)` + `androidx.compose.foundation.Image`
+(`ContentScale.Fit`).
+
+**Why it should work:** `painterResource` decodes non-XML drawables through the platform image decoder —
+Android `BitmapFactory` and desktop Skia (`Image.makeFromEncoded`) both support WebP. `LogoLong.webp` is a
+VP8X (with alpha) canvas **1920 × 637**.
+
+**Caveat / `0.90`:** the exact WebP decode path in CMP 1.12.0 resources was not fetched from a pinned
+source in the agent container, so **confirm at first run** (render on desktop + device). Fallback if it
+does not render: export the same asset as PNG (`logo_long.png`) and update the accessor — no code
+structure change. `contentDescription = null` keeps the image decorative (FE-INV-010.5).
+
+**✅ Confirmed (2026-09-22).** The JetBrains CMP docs (`compose-multiplatform-resources-setup.html`,
+accessed 2026-09-22) state that Compose Multiplatform supports rasterized images "JPEG, PNG, bitmap,
+and WebP", and the logo rendered on desktop + physical device (user-confirmed). Confidence raised to
+`1.00`.
+
+---
+
+## 12. Post-phase-6 additions (dark mode + icons)
+
+`Access date = 2026-09-22` for every item below (FE-INV-001). Sources: MiuiX repo tag `v0.9.4`
+(`github.com/compose-miuix-ui/miuix`) and the JetBrains CMP docs.
+
+### 12.1 MiuiX theme dark mode — 0.9.4 — confidence `1.00`
+
+**Sources:** `miuix-ui/.../theme/MiuixTheme.kt` and `.../theme/Colors.kt` at tag `v0.9.4`.
+
+Confirmed: `MiuixTheme(colors: Colors = MiuixTheme.colorScheme, textStyles, content)` and the top-level
+`lightColorScheme(...): Colors` / `darkColorScheme(...): Colors` functions in
+`top.yukonga.miuix.kmp.theme`. System detection uses `androidx.compose.foundation.isSystemInDarkTheme()`
+(the JetBrains `compose-resource-environment.html` doc: "Compose Multiplatform defines the current
+theme via `isSystemInDarkTheme()`"). Used by `AppTheme` (CHG-FE-0031).
+
+### 12.2 MiuiX `Icon` + `MiuixIcons` — 0.9.4 — confidence `1.00`
+
+**Sources:** `miuix-ui/.../basic/Icon.kt`, `.../basic/SmallTitle.kt`, and the `miuix-icons` metadata.
+
+Confirmed: `Icon(imageVector: ImageVector, contentDescription: String?, modifier, tint)` in
+`top.yukonga.miuix.kmp.basic`; a `null` contentDescription makes it decorative. Icons are extension
+properties on `MiuixIcons` (`top.yukonga.miuix.kmp.icon`): the **extended** set
+(`top.yukonga.miuix.kmp.icon.extended.*`, 163 names) exposes both a default (`val MiuixIcons.Home`,
+aliasing `MiuixIcons.Regular.Home`) and the `Light/Normal/Regular/Medium/Demibold` variants; the
+**basic** set (`top.yukonga.miuix.kmp.icon.basic.*`) is nested under `MiuixIcons.Basic` (e.g.
+`MiuixIcons.Basic.Check`). `SmallTitle(text, modifier, textColor, insideMargin)` has **no** icon slot,
+so the new `SectionTitle` wraps `Icon` + `Text`. (CHG-FE-0032.)
+
+### 12.3 MiuiX `TextField(leadingIcon=/trailingIcon=)` — 0.9.4 — confidence `1.00`
+
+**Source:** `miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/basic/TextField.kt` at tag `v0.9.4`
+(fetched 2026-09-22).
+
+Confirmed: `leadingIcon`/`trailingIcon` are `@Composable (() -> Unit)? = null`. In `TextFieldChrome` /
+`TextFieldDecorationBox` the icon slots are placed **flush against the Row edges**, and the
+`insideMargin` is applied **only to the text box** (`padding(end = insideMargin.width)` when a leading
+icon exists, `padding(start = …)` when trailing, and neither horizontally when both exist). Therefore
+the caller must pad the icon slot itself: the app uses
+`Modifier.padding(start = TextFieldDefaults.InsideMargin.width, end = 8.dp).size(20.dp)` for the
+name/host/UDP/TCP/token fields (CHG-FE-0033). This corrects the CHG-FE-0032 icons that were flush
+against the border and text.
+
+### 12.4 Resource language/theme qualifiers + WebP — CMP 1.12.0 — confidence `1.00`
+
+**Source:** JetBrains docs `compose-multiplatform-resources-setup.html` (accessed 2026-09-22).
+
+Confirmed: language/region/theme/density qualifiers (`values-en`, `drawable-dark`, …), with the
+unqualified directory as the fallback; rasterized WebP is supported. Recorded because English and a
+theme-qualified logo variant were evaluated (English deferred — CHG-FE-0030; dark logo handled in code
+per CHG-FE-0031).

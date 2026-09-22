@@ -1,8 +1,10 @@
 package com.korealm.lumina.transport
 
 import com.korealm.lumina.protocol.subscribeLine
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -21,6 +23,7 @@ private val VALID_STATUS_PROTO_2: String = VALID_STATUS.replace(""""proto":1""",
  * Tests for [KtorTelemetrySource]: subscribe handshake, frame decoding, liveness, re-subscribe and
  * retry — all driven by fakes, no network and no real time (PLAN Phase 2).
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class TelemetrySourceTest {
 
     private fun source(
@@ -182,6 +185,130 @@ class TelemetrySourceTest {
 
         assertEquals(listOf(Endpoint("first"), Endpoint("second")), endpoints)
         assertEquals(subscribeLine(), sockets.last().sent.single().decodeToString())
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun doesNotReportOfflineBeforeTheFirstFrameWithinTheLivenessWindow() = runTest {
+        val socket = FakeTelemetrySocket()
+        val clock = FakeClock()
+        val ticker = FakeTicker()
+        val events = mutableListOf<TelemetryEvent>()
+        val job = launch { source(socket, clock, ticker).status().collect { events += it } }
+        runCurrent()
+
+        // The offline window runs from connect time, so 4999 ms of silence is not yet offline
+        // (R1 in CHG-FE-0020: the old `lastArrivalMs = null` reported offline on the first tick).
+        clock.now = 4_999
+        ticker.tick()
+        runCurrent()
+
+        assertTrue(events.none { it is TelemetryEvent.Offline }, "must not report offline at 4999 ms")
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun goesOfflineFiveSecondsAfterConnectingWithoutFrames() = runTest {
+        val socket = FakeTelemetrySocket()
+        val clock = FakeClock()
+        val ticker = FakeTicker()
+        val events = mutableListOf<TelemetryEvent>()
+        val job = launch { source(socket, clock, ticker).status().collect { events += it } }
+        runCurrent()
+
+        clock.now = 5_000
+        ticker.tick()
+        runCurrent()
+
+        assertIs<TelemetryEvent.Offline>(events.last())
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun recoversToOnlineWhenAFrameArrivesAfterOffline() = runTest {
+        val socket = FakeTelemetrySocket()
+        val clock = FakeClock()
+        val ticker = FakeTicker()
+        val events = mutableListOf<TelemetryEvent>()
+        val job = launch { source(socket, clock, ticker).status().collect { events += it } }
+        runCurrent()
+
+        clock.now = 5_000
+        ticker.tick()
+        runCurrent()
+        assertIs<TelemetryEvent.Offline>(events.last())
+
+        // The server comes back: the same socket receives a frame and the UI returns online.
+        clock.now = 5_100
+        socket.deliver(VALID_STATUS.encodeToByteArray())
+        runCurrent()
+
+        assertIs<TelemetryEvent.Online>(events.last())
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun anIncompatibleFrameKeepsTheDeviceLiveUntilItGoesSilent() = runTest {
+        val socket = FakeTelemetrySocket()
+        val clock = FakeClock()
+        val ticker = FakeTicker()
+        val events = mutableListOf<TelemetryEvent>()
+        val job = launch { source(socket, clock, ticker).status().collect { events += it } }
+        runCurrent()
+
+        clock.now = 1_000
+        socket.deliver(VALID_STATUS_PROTO_2.encodeToByteArray())
+        runCurrent()
+        assertIs<TelemetryEvent.Incompatible>(events.last())
+
+        // 4999 ms after the incompatible frame: still live (a frame arrived, just for another proto).
+        clock.now = 5_999
+        ticker.tick()
+        runCurrent()
+        assertTrue(events.none { it is TelemetryEvent.Offline }, "an incompatible frame keeps liveness")
+
+        // 5000 ms after it: the device went silent, so it is genuinely offline.
+        clock.now = 6_000
+        ticker.tick()
+        runCurrent()
+        assertIs<TelemetryEvent.Offline>(events.last())
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun retriesAfterASocketFailureAndReconnectsToOnline() = runTest {
+        // A factory that records each opened socket so the reconnect can be observed.
+        val sockets = mutableListOf<FakeTelemetrySocket>()
+        val factory = object : TelemetrySocketFactory {
+            override suspend fun open(endpoint: Endpoint): TelemetrySocket =
+                FakeTelemetrySocket().also { sockets += it }
+        }
+        val clock = FakeClock()
+        val events = mutableListOf<TelemetryEvent>()
+        val telemetry = KtorTelemetrySource(
+            endpointProvider = { Endpoint("gateway") },
+            sockets = factory,
+            clock = clock,
+            ticker = FakeTicker(),
+        )
+        val job = launch { telemetry.status().collect { events += it } }
+        runCurrent()
+        assertEquals(1, sockets.size)
+
+        // The first session dies: the source reports offline and waits the 1 s backoff before retrying.
+        sockets.single().fail(RuntimeException("connection reset"))
+        runCurrent()
+        assertIs<TelemetryEvent.Offline>(events.last())
+        assertEquals(1, sockets.size, "must not reconnect before the backoff elapses")
+
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertEquals(2, sockets.size, "a new session opens after the backoff")
+
+        clock.now = 1_100
+        sockets.last().deliver(VALID_STATUS.encodeToByteArray())
+        runCurrent()
+        assertIs<TelemetryEvent.Online>(events.last())
         job.cancelAndJoin()
     }
 }

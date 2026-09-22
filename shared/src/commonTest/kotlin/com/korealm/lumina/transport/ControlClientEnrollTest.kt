@@ -170,4 +170,18 @@ class ControlClientEnrollTest {
 
         assertIs<ControlResult.Io>(result)
     }
+
+    @Test
+    fun aStalledStreamEndsWithFailureWhenTheReadWatchdogFires() = runTest {
+        // `readLine` never returns; only the per-line 30 s watchdog can end the stream. `runTest`
+        // advances virtual time to that timeout, so this completes instantly and proves the stream
+        // yields a value instead of hanging (CHG-FE-0020).
+        val connection = StallingControlConnection()
+
+        val events = client(FakeControlConnectionFactory(connection)).enrollFromCamera("Ana").toList()
+
+        assertEquals(listOf(EnrollEvent.Failure(EnrollmentFailure.Io)), events)
+        assertEquals(enrollCameraStartLine("tok", "Ana") + "\n", connection.written.single())
+        assertTrue(connection.closed)
+    }
 }

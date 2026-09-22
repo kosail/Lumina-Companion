@@ -13,6 +13,10 @@ import javax.imageio.ImageIO
  *
  * Kotlin note: `actual` provides the platform implementation of the common `expect` factory; this is
  * only used by the desktop dev loop, but it keeps photo enrollment testable without a device.
+ *
+ * Known limitation: the JDK has no EXIF reader, so orientation is **not** applied here (the Android
+ * `actual` does apply it). The desktop picker is a developer loop, not the shipped photo path
+ * (CHG-FE-0023).
  */
 actual fun createImagePreparer(): ImagePreparer = JvmImagePreparer
 

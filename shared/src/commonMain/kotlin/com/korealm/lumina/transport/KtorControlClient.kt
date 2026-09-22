@@ -23,6 +23,7 @@ import com.korealm.lumina.protocol.volumeSetLine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.io.encoding.Base64
 
@@ -46,6 +47,10 @@ const val ENROLL_READ_TIMEOUT_MS: Long = 30_000L
  * thrown (AGENTS §7).
  *
  * There is no request `id`; replies are correlated by order on a connection (contract §3.2).
+ *
+ * All socket work runs on [ioDispatcher] (FE-INV-052): commands are launched from `viewModelScope`,
+ * which is Android's main thread, and resolving the gateway / connecting there throws
+ * `NetworkOnMainThreadException` (CHG-FE-0027).
  *
  * @param endpointProvider supplies the current gateway at call time.
  * @param tokenProvider supplies the shared token; never logged or stored here (FE-INV-053).
@@ -97,8 +102,10 @@ class KtorControlClient(
         }
 
     override suspend fun cancelEnrollment(): ControlResult<Unit> {
+        val endpoint = endpointProvider()
         val connection = try {
-            connections.open(endpointProvider())
+            // See [request]: connect off the caller's (Android main) thread (FE-INV-052, CHG-FE-0027).
+            withContext(ioDispatcher) { connections.open(endpoint) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
@@ -155,8 +162,13 @@ class KtorControlClient(
             return@flow
         }
 
+        val endpoint = endpointProvider()
         val connection = try {
-            connections.open(endpointProvider())
+            // Connect off the collector's thread (Android's main thread when collected from
+            // viewModelScope) so address resolution cannot throw NetworkOnMainThreadException
+            // (FE-INV-052, CHG-FE-0027). The channel reads below dispatch to the socket's own I/O
+            // context, so the per-line watchdog keeps running on the collector's context.
+            withContext(ioDispatcher) { connections.open(endpoint) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
@@ -232,8 +244,12 @@ class KtorControlClient(
         buildLine: () -> String,
         map: (Reply) -> ControlResult<T>,
     ): ControlResult<T> {
+        val endpoint = endpointProvider()
         val connection = try {
-            connections.open(endpointProvider())
+            // Resolve the gateway and connect off the caller's thread: a command launched from
+            // viewModelScope runs on Android's main thread, where address resolution throws
+            // NetworkOnMainThreadException (FE-INV-052, CHG-FE-0027).
+            withContext(ioDispatcher) { connections.open(endpoint) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {

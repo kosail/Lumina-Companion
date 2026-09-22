@@ -74,11 +74,11 @@ Lumina-BETA-ANDROID/
 ```bash
 # Android app (debug)
 ./gradlew :androidApp:assembleDebug
+# install the debug build on a connected device/emulator:
+adb install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
 
 # Desktop app (fast development loop)
 ./gradlew :desktopApp:run
-# or, with hot reload:
-./gradlew :desktopApp:hotRun --auto
 ```
 
 ### Run the tests
@@ -110,14 +110,19 @@ Then point the app at it:
 |---|---|
 | Desktop | `127.0.0.1` |
 | Android emulator | `10.0.2.2` |
-| Physical Android device | The Pi's LAN IP (or `adb reverse tcp:47601 tcp:47601` for TCP only) |
-| Real Lúmina device | `10.42.0.1` (the hotspot gateway, the default) |
+| Physical Android device, mock on your LAN | The dev host's LAN IP — for **both** ports |
+| Real Lúmina device | `10.42.0.1` (the hotspot gateway; the Android build default) |
+
+> Raw **UDP** telemetry has no port-forwarding trick: `adb reverse` forwards TCP only, so a physical
+> device must reach the dev host (mock) or the Pi by its **LAN IP**. The host and token are edited in
+> the app's **Ajustes** tab and stored in private app storage.
 
 The mock's default control token is `dev-token`. The real device's token lives on the Pi.
 
 The mock can also simulate problems so you can test every state: `runtime-down`, `volume-unknown`,
-`camera-dark`, `earbuds-absent`, `enroll-fail`, `enroll-slow`, and more. See its README for the full
-list.
+`camera-dark`, `earbuds-absent`, `enroll-fail`, `enroll-slow` — as startup flags or live via
+`POST http://127.0.0.1:47602/scenario/<name>`. `busy` is reached naturally by starting a second
+enrollment while one is running. See its README for the full list.
 
 ---
 
@@ -142,6 +147,9 @@ This repo uses an explicit, spec-driven workflow. Read these before contributing
 | [`AGENTS.md`](AGENTS.md) | The operating manual: workflow, style, tooling, rules. |
 | [`PLAN.md`](PLAN.md) | The build plan, phase by phase. |
 | [`CHANGELOG.md`](CHANGELOG.md) | Append-only record of every meaningful change. |
+| [`docs/ACCESSIBILITY.md`](docs/ACCESSIBILITY.md) | Accessibility audit, MIUI fallback register, and the manual TalkBack script. |
+| [`docs/API_VERIFICATION.md`](docs/API_VERIFICATION.md) | Verification of every pinned API against its source or docs (FE-INV-001). |
+| [`docs/VALIDATION.md`](docs/VALIDATION.md) | The end-to-end validation transcript (desktop + physical Android device). |
 | [`../Lumina-BETA-RPI-2W/docs/API_CONTRACT.md`](../Lumina-BETA-RPI-2W/docs/API_CONTRACT.md) | The wire protocol (owned by the runtime repo; read-only here). |
 
 The wire protocol is owned by the **runtime repository**. This repo only consumes it — never change

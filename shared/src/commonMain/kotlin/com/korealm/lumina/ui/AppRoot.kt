@@ -1,5 +1,7 @@
 package com.korealm.lumina.ui
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -9,10 +11,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.korealm.lumina.ui.components.BrandHeader
 import com.korealm.lumina.ui.dashboard.ControlMessage
 import com.korealm.lumina.ui.dashboard.DashboardActions
 import com.korealm.lumina.ui.dashboard.DashboardScreen
 import com.korealm.lumina.ui.dashboard.DashboardUiState
+import com.korealm.lumina.ui.people.EnrollmentStatusLine
 import com.korealm.lumina.ui.people.PeopleActions
 import com.korealm.lumina.ui.people.PeopleMessage
 import com.korealm.lumina.ui.people.PeopleScreen
@@ -68,7 +73,8 @@ private enum class LuminaTab { Dashboard, People, Settings }
  *
  * The shell owns the single [SnackbarHostState]: both the dashboard's and the people screen's
  * one-shot messages are shown here and then cleared. MiuiX `Snackbar` announces itself via
- * `liveRegion` (FE-INV-010).
+ * `liveRegion` (FE-INV-010). It also hosts the compact enrollment status line shown while an
+ * enrollment runs on a non-Personas tab, so progress is announced wherever the user is (CHG-FE-0021).
  *
  * @param dashboardState the dashboard state, produced by its view model.
  * @param dashboardActions the dashboard's user intents.
@@ -143,24 +149,42 @@ fun AppRoot(
         },
         snackbarHost = { SnackbarHost(state = snackbarHostState) },
     ) { padding ->
-        when (selectedTab) {
-            LuminaTab.Dashboard -> DashboardScreen(
-                state = dashboardState,
-                actions = dashboardActions,
-                modifier = Modifier.padding(padding),
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
+            // Branding shown on every tab; it sits above the scrollable screens so it stays put.
+            BrandHeader()
 
-            LuminaTab.People -> PeopleScreen(
-                state = peopleState,
-                actions = peopleActions,
-                modifier = Modifier.padding(padding),
-            )
+            // Enrollment announcements must survive a tab switch (FE-INV-010): the Personas screen
+            // owns the full card (with the cancel action), so the shell shows this compact live-region
+            // line on every *other* tab while an enrollment runs.
+            if (selectedTab != LuminaTab.People) {
+                EnrollmentStatusLine(
+                    state = peopleState,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                )
+            }
+            when (selectedTab) {
+                LuminaTab.Dashboard -> DashboardScreen(
+                    state = dashboardState,
+                    actions = dashboardActions,
+                    modifier = Modifier.weight(1f),
+                )
 
-            LuminaTab.Settings -> SettingsScreen(
-                state = settingsState,
-                actions = settingsActions,
-                modifier = Modifier.padding(padding),
-            )
+                LuminaTab.People -> PeopleScreen(
+                    state = peopleState,
+                    actions = peopleActions,
+                    modifier = Modifier.weight(1f),
+                )
+
+                LuminaTab.Settings -> SettingsScreen(
+                    state = settingsState,
+                    actions = settingsActions,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }

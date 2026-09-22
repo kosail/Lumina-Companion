@@ -3,9 +3,12 @@ package com.korealm.lumina.ui.people
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -16,17 +19,16 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.korealm.lumina.protocol.EnrollPhase
 import com.korealm.lumina.ui.ConnectionState
+import com.korealm.lumina.ui.components.InfoRow
+import com.korealm.lumina.ui.components.SectionTitle
+import com.korealm.lumina.ui.components.TokenWarning
 import com.korealm.lumina.ui.picker.rememberPhotoPicker
 import lumina.shared.generated.resources.Res
 import lumina.shared.generated.resources.action_start
 import lumina.shared.generated.resources.conn_connecting
 import lumina.shared.generated.resources.conn_incompatible
 import lumina.shared.generated.resources.conn_offline
-import lumina.shared.generated.resources.enroll_phase_capturing
-import lumina.shared.generated.resources.enroll_phase_starting
-import lumina.shared.generated.resources.enroll_phase_stopping
 import lumina.shared.generated.resources.enroll_progress
 import lumina.shared.generated.resources.people_add_camera
 import lumina.shared.generated.resources.people_add_photos
@@ -40,19 +42,30 @@ import lumina.shared.generated.resources.people_refresh
 import lumina.shared.generated.resources.people_runtime_down
 import lumina.shared.generated.resources.people_title
 import lumina.shared.generated.resources.section_people
-import lumina.shared.generated.resources.token_warning_body
-import lumina.shared.generated.resources.token_warning_title
 import org.jetbrains.compose.resources.stringResource
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextFieldDefaults
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.Check
+import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Contacts
+import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
+import top.yukonga.miuix.kmp.icon.extended.Image
+import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.extended.Photos
+import top.yukonga.miuix.kmp.icon.extended.Play
+import top.yukonga.miuix.kmp.icon.extended.Recording
+import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.extended.Reset
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -60,9 +73,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * card that starts a camera or photo enrollment.
  *
  * Responsibility: render [PeopleUiState] and emit [PeopleActions] only — no business logic
- * (FE-INV-051). Designed to FE-INV-026: one purpose, generous spacing, large type, visible labels.
- * Talks never depend on color alone: state is always written out, and the connection state and
- * enrollment phase are `liveRegion`s (FE-INV-010).
+ * (FE-INV-051). Designed to FE-INV-026: one purpose, generous spacing, large type, visible labels and
+ * a decorative MiuiX icon on every section, row and control (icons are `contentDescription = null`,
+ * so TalkBack relies on the labels — FE-INV-010).
  *
  * The photo picker is a documented platform fallback (FE-INV-025): Android uses the system Photo
  * Picker, desktop a file chooser; both hide behind [rememberPhotoPicker].
@@ -98,14 +111,18 @@ fun PeopleScreen(
         if (!online) ConnectionBanner(state.connection)
         if (state.needsToken) TokenWarning()
 
-        SmallTitle(text = stringResource(Res.string.section_people))
+        SectionTitle(icon = MiuixIcons.ContactsCircle, text = stringResource(Res.string.section_people))
         Card(modifier = Modifier.fillMaxWidth()) {
             if (state.people.isEmpty()) {
-                InfoRow(label = stringResource(Res.string.people_empty), value = "")
+                InfoRow(
+                    label = stringResource(Res.string.people_empty),
+                    value = "",
+                    icon = MiuixIcons.Contacts,
+                )
             } else {
                 state.people.forEachIndexed { index, name ->
                     if (index > 0) HorizontalDivider()
-                    InfoRow(label = name, value = "")
+                    InfoRow(label = name, value = "", icon = MiuixIcons.Contacts)
                 }
             }
             HorizontalDivider()
@@ -117,11 +134,17 @@ fun PeopleScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 16.dp),
             ) {
+                Icon(
+                    imageVector = MiuixIcons.Refresh,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(Res.string.people_refresh))
             }
         }
 
-        SmallTitle(text = stringResource(Res.string.people_add_section))
+        SectionTitle(icon = MiuixIcons.Add, text = stringResource(Res.string.people_add_section))
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -134,6 +157,12 @@ fun PeopleScreen(
                     colors = ButtonDefaults.buttonColorsPrimary(),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
+                    Icon(
+                        imageVector = MiuixIcons.Image,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(Res.string.people_add_camera))
                 }
                 Button(
@@ -142,6 +171,12 @@ fun PeopleScreen(
                     colors = ButtonDefaults.buttonColorsPrimary(),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
+                    Icon(
+                        imageVector = MiuixIcons.Photos,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(Res.string.people_add_photos))
                 }
             }
@@ -156,7 +191,7 @@ fun PeopleScreen(
     }
 }
 
-/** The "add person" name input with an inline error, matching the settings fields. */
+/** The "add person" name input with an inline error and a leading icon, matching the settings fields. */
 @Composable
 private fun NameField(
     state: PeopleUiState,
@@ -175,6 +210,18 @@ private fun NameField(
             label = stringResource(Res.string.people_name_label),
             singleLine = true,
             enabled = enabled,
+            leadingIcon = {
+                Icon(
+                    imageVector = MiuixIcons.Contacts,
+                    contentDescription = null,
+                    // MiuiX pads only the text box, so the icon slot must carry its own spacing:
+                    // 16 dp from the border (the field's content margin) and 8 dp before the text.
+                    modifier = Modifier
+                        .padding(start = TextFieldDefaults.InsideMargin.width, end = 8.dp)
+                        .size(20.dp),
+                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                )
+            },
             colors = if (state.nameError) errorColors else defaultColors,
         )
         if (state.nameError) {
@@ -190,7 +237,8 @@ private fun NameField(
 
 /**
  * Enrollment progress. The phase label is a `liveRegion` so a phase change is announced, while the
- * per-frame counter is not (announcing every frame would drown the screen reader).
+ * per-frame counter is not (announcing every frame would drown the screen reader). The recording icon
+ * is decorative (FE-INV-026).
  */
 @Composable
 private fun EnrollmentCard(state: PeopleUiState, actions: PeopleActions) {
@@ -200,12 +248,23 @@ private fun EnrollmentCard(state: PeopleUiState, actions: PeopleActions) {
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = phaseLabel(state.phase),
-                style = MiuixTheme.textStyles.title4,
-                color = colors.onSurfaceContainer,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Recording,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    tint = colors.onSurfaceContainer,
+                )
+                Text(
+                    text = phaseLabel(state.phase),
+                    style = MiuixTheme.textStyles.title4,
+                    color = colors.onSurfaceContainer,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
             LinearProgressIndicator(
                 progress = progressFraction(state.captured, state.total),
                 modifier = Modifier.fillMaxWidth(),
@@ -222,8 +281,8 @@ private fun EnrollmentCard(state: PeopleUiState, actions: PeopleActions) {
             if (state.noFaceNotice) {
                 // Keyed on the transition counter so each *new* notice (re)creates a live-region
                 // node and is announced once; consecutive notice frames keep the same key and stay
-                // silent (FE-INV-010).
-                // TODO(ui): full enrollment-announcement overhaul (progress + off-tab) — FE-INV-010 / CHG-FE-0017.
+                // silent (FE-INV-010). Off-tab announcements are handled by the shell's
+                // EnrollmentStatusLine (CHG-FE-0021); per-frame progress is intentionally not announced.
                 key(state.noFaceNoticeSeq) {
                     Text(
                         text = stringResource(Res.string.people_no_face),
@@ -239,6 +298,12 @@ private fun EnrollmentCard(state: PeopleUiState, actions: PeopleActions) {
                 colors = ButtonDefaults.buttonColorsPrimary(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
+                Icon(
+                    imageVector = MiuixIcons.Close,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(Res.string.people_cancel))
             }
         }
@@ -273,13 +338,19 @@ private fun RuntimeRecoveryCard(state: PeopleUiState, actions: PeopleActions) {
                 colors = ButtonDefaults.buttonColorsPrimary(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
+                Icon(
+                    imageVector = MiuixIcons.Play,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(Res.string.action_start))
             }
         }
     }
 }
 
-/** Color-coded connection banner for the people screen; announced as a polite `liveRegion`. */
+/** Color-coded connection banner with a matching decorative icon; its label is a `liveRegion`. */
 @Composable
 private fun ConnectionBanner(connection: ConnectionState) {
     val colors = MiuixTheme.colorScheme
@@ -288,6 +359,12 @@ private fun ConnectionBanner(connection: ConnectionState) {
         ConnectionState.Online -> ""
         ConnectionState.Offline -> stringResource(Res.string.conn_offline)
         ConnectionState.Incompatible -> stringResource(Res.string.conn_incompatible)
+    }
+    val icon = when (connection) {
+        ConnectionState.Connecting -> MiuixIcons.Reset
+        ConnectionState.Online -> MiuixIcons.Basic.Check
+        ConnectionState.Offline -> MiuixIcons.Close
+        ConnectionState.Incompatible -> MiuixIcons.Info
     }
     // "Conectando" is a neutral startup state, not a failure; only offline/incompatible are errors.
     val container = when (connection) {
@@ -301,90 +378,26 @@ private fun ConnectionBanner(connection: ConnectionState) {
         ConnectionState.Offline, ConnectionState.Incompatible -> colors.onErrorContainer
     }
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { liveRegion = LiveRegionMode.Polite },
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(color = container, contentColor = onContainer),
     ) {
-        Text(
-            text = label,
+        Row(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-            style = MiuixTheme.textStyles.title4,
-            color = onContainer,
-        )
-    }
-}
-
-/** Persistent token warning, mirroring the dashboard's, shown after an `unauthorized` reply. */
-@Composable
-private fun TokenWarning() {
-    val colors = MiuixTheme.colorScheme
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { liveRegion = LiveRegionMode.Polite },
-        colors = CardDefaults.defaultColors(
-            color = colors.errorContainer,
-            contentColor = colors.onErrorContainer,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = stringResource(Res.string.token_warning_title),
-                style = MiuixTheme.textStyles.title4,
-                color = colors.onErrorContainer,
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = onContainer,
             )
             Text(
-                text = stringResource(Res.string.token_warning_body),
-                style = MiuixTheme.textStyles.body1,
-                color = colors.onErrorContainer,
+                text = label,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                style = MiuixTheme.textStyles.title4,
+                color = onContainer,
             )
         }
     }
-}
-
-/** One label/value row inside a card. Large value text per FE-INV-026. */
-@Composable
-private fun InfoRow(label: String, value: String, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            style = MiuixTheme.textStyles.body1,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        )
-        if (value.isNotEmpty()) {
-            Text(
-                text = value,
-                style = MiuixTheme.textStyles.title4,
-                color = MiuixTheme.colorScheme.onSurfaceContainer,
-            )
-        }
-    }
-}
-
-/** Maps the enrollment phase to a Spanish label. */
-@Composable
-private fun phaseLabel(phase: EnrollPhase?): String = when (phase) {
-    EnrollPhase.StoppingRuntime -> stringResource(Res.string.enroll_phase_stopping)
-    EnrollPhase.StartingRuntime -> stringResource(Res.string.enroll_phase_starting)
-    EnrollPhase.Capturing, EnrollPhase.Unknown, null ->
-        stringResource(Res.string.enroll_phase_capturing)
-}
-
-/**
- * The determinate progress in `0f..1f`, or `null` (indeterminate) when the frame counts are not
- * usable yet. Pure so the mapping is obvious and side-effect free.
- */
-private fun progressFraction(captured: Int?, total: Int?): Float? {
-    if (captured == null || total == null || total <= 0) return null
-    return (captured.toFloat() / total).coerceIn(0f, 1f)
 }

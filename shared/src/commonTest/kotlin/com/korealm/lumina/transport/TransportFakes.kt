@@ -5,6 +5,7 @@ import com.korealm.lumina.protocol.EnrollEvent
 import com.korealm.lumina.protocol.RuntimeState
 import com.korealm.lumina.protocol.SinkState
 import com.korealm.lumina.protocol.VolumeState
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -140,6 +141,26 @@ class ThrowingWriteControlConnection(private val error: Throwable) : ControlConn
     }
 
     override suspend fun readLine(): String? = null
+
+    override fun close() {
+        closed = true
+    }
+}
+
+/**
+ * A [ControlConnection] whose [readLine] never returns, to exercise the enrollment stream's per-line
+ * read watchdog (a stalled device must end the stream with a value, not hang forever — CHG-FE-0020).
+ */
+class StallingControlConnection : ControlConnection {
+    val written = mutableListOf<String>()
+    var closed = false
+        private set
+
+    override suspend fun writeLine(line: String) {
+        written += line + "\n"
+    }
+
+    override suspend fun readLine(): String? = awaitCancellation()
 
     override fun close() {
         closed = true
