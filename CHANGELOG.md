@@ -1942,4 +1942,33 @@
   approvals: [user]
   follow_up: >-
     None. The license is permanent GPLv3.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0041 — Human-friendly README rewrite
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0041
+  date: 2026-09-26
+  agent: opencode/deepseek-v4-flash
+  type: docs
+  status: applied
+  invariants:
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    Rewrote README.md so it reads as a human project page rather than an agent manual. Merged the
+    duplicated "What it does" and "Final state" sections into one plain feature list, humanized the
+    project-documents section (dropped the "operating manual / spec-driven" framing and the lone
+    FE-INV citation), corrected the outcome to the regional stage to match the runtime, wrote a real
+    Contributing section, and added a closing copyleft notice from kosail with the sign-off. The
+    accessibility note, tech table, build instructions, mock-server guide, and known limitations are
+    preserved.
+  rationale: >-
+    A README is for people, not agents; the archived app should be approachable to any human who
+    wants to understand or reuse it, and should tell the same story as the runtime repository.
+  files:
+    - Lumina-BETA-ANDROID/README.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    None.
 ```
