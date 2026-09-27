@@ -25,6 +25,7 @@ enum class PendingAction {
  *   not overwritten by an older in-flight frame ([volumeFromControl]).
  * @param volumeFromControl true when [volume] came from a control reply (or an optimistic echo) and
  *   the next telemetry frame should be ignored; see [reduceDashboardState].
+ * @param transition a runtime start/stop that is settling, or `null`; see [runtimeButtonState].
  * @param pending the control command in flight, or `null`.
  * @param message the last action outcome to announce once, or `null`.
  * @param messageSeq monotonic counter feeding [UiMessage.id]; never shown.
@@ -37,6 +38,7 @@ data class DashboardUiState(
     val incompatibleProto: Int? = null,
     val volume: VolumeState? = null,
     val volumeFromControl: Boolean = false,
+    val transition: RuntimeTransition? = null,
     val pending: PendingAction? = null,
     val message: UiMessage? = null,
     val messageSeq: Long = 0L,

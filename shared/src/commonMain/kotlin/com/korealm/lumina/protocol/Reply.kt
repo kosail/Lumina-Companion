@@ -94,7 +94,13 @@ private fun decodeKnown(type: String, obj: JsonObject): Reply = when (type) {
 
     "runtime.state" -> {
         val wire = LuminaJson.decodeFromJsonElement(WireRuntimeState.serializer(), obj)
-        Reply.Runtime(RuntimeState(running = wire.running, sink = SinkState.fromWire(wire.sink)))
+        Reply.Runtime(
+            RuntimeState(
+                running = wire.running,
+                sink = SinkState.fromWire(wire.sink),
+                initializing = wire.initializing,
+            ),
+        )
     }
 
     "enroll.progress" -> {

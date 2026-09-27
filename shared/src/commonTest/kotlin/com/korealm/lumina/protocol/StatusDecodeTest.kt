@@ -65,6 +65,26 @@ class StatusDecodeTest {
     }
 
     @Test
+    fun toleratesANullVolumeFromTheDevice() {
+        // Regression (CHG-FE-0038): the runtime agent has sent `"volume":null` when the BlueALSA mixer
+        // is unavailable, while the contract says -1. The field default must absorb it so the whole
+        // frame is not dropped (which made the app show "Sin Conexión").
+        val json = """{"t":"status","proto":1,"ts":5,"runtime":{"reachable":false,"running":false,"uptimeS":0,"sink":"absent","faceCount":2},"sensors":{"volume":null,"muted":false,"luma":-1.0,"dayNight":"unknown"},"people":["Ana"]}"""
+        val status = LuminaJson.decodeFromString(WireStatus.serializer(), json)
+
+        assertEquals(-1, status.sensors.volume)  // coerced to the sentinel
+        assertNull(status.toDomain(0L).sensors.volumePercent)  // and interpreted as "unknown"
+        assertEquals(listOf("Ana"), status.people)
+    }
+
+    @Test
+    fun toleratesAnAbsentVolumeField() {
+        val json = """{"t":"status","proto":1,"ts":5,"runtime":{"reachable":false,"running":false,"uptimeS":0,"sink":"absent","faceCount":0},"sensors":{"muted":false,"luma":-1.0,"dayNight":"unknown"}}"""
+        val status = LuminaJson.decodeFromString(WireStatus.serializer(), json)
+        assertEquals(-1, status.sensors.volume)
+    }
+
+    @Test
     fun coercesNullValuesToDefaults() {
         // `coerceInputValues = true`: null for a non-null field that has a default uses the default.
         val json = """{"t":"status","proto":1,"ts":5,"runtime":{"reachable":true,"running":true,"uptimeS":1,"sink":"ready","faceCount":0},"core":{"fps":null,"rssMb":null},"sensors":{"volume":-1,"muted":false,"luma":-1.0,"dayNight":"unknown"},"enroll":null}"""

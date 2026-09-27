@@ -137,6 +137,7 @@ class DashboardReducerTest {
         val state = reduceRuntimeResult(
             flagged,
             ControlResult.Ok(RuntimeState(running = true, sink = SinkState.Ready)),
+            RuntimeCommand.Start,
         )
 
         assertFalse(state.needsToken)
@@ -163,8 +164,117 @@ class DashboardReducerTest {
         val stopped = reduceRuntimeResult(
             DashboardUiState(),
             ControlResult.Ok(RuntimeState(running = false, sink = SinkState.Absent)),
+            RuntimeCommand.Stop,
         )
         assertEquals(ControlMessage.RuntimeStopped, stopped.message?.message)
+    }
+
+    @Test
+    fun aStartThatIsInitializingEntersTheStartingTransition() {
+        val state = reduceRuntimeResult(
+            beginAction(DashboardUiState(), PendingAction.Runtime),
+            ControlResult.Ok(RuntimeState(running = true, sink = SinkState.Absent, initializing = true)),
+            RuntimeCommand.Start,
+        )
+
+        assertEquals(RuntimeTransition.Starting, state.transition)
+        assertNull(state.pending)
+    }
+
+    @Test
+    fun aStartThatIsAlreadyRunningStillSettlesUntilTelemetryConfirms() {
+        // A reply of `running=true` with no `initializing` means the device is active but (for an
+        // agent without the additive flag) we cannot tell ready from still-starting, so it settles.
+        val state = reduceRuntimeResult(
+            DashboardUiState(),
+            ControlResult.Ok(RuntimeState(running = true, sink = SinkState.Ready, initializing = false)),
+            RuntimeCommand.Start,
+        )
+
+        assertEquals(RuntimeTransition.Starting, state.transition)
+
+        // Telemetry reporting the runtime up clears it.
+        val settled = reduceDashboardState(state, TelemetryEvent.Online(sampleStatus()))
+        assertNull(settled.transition)
+    }
+
+    @Test
+    fun aFailedStartReportsFailureWithoutATransition() {
+        val state = reduceRuntimeResult(
+            DashboardUiState(),
+            ControlResult.Ok(RuntimeState(running = false, sink = SinkState.Absent, initializing = false)),
+            RuntimeCommand.Start,
+        )
+
+        assertNull(state.transition)
+        assertEquals(ControlMessage.RuntimeStartFailed, state.message?.message)
+    }
+
+    @Test
+    fun aFailedStopClearsTheTransitionAndReportsFailure() {
+        // The agent replies with the real `is-active`; `running=true` means the stop did not take, so
+        // the button must not stick in "stopping" (CHG-FE-0037).
+        val state = reduceRuntimeResult(
+            DashboardUiState(),
+            ControlResult.Ok(RuntimeState(running = true, sink = SinkState.Ready)),
+            RuntimeCommand.Stop,
+        )
+
+        assertNull(state.transition)
+        assertEquals(ControlMessage.RuntimeStopFailed, state.message?.message)
+    }
+
+    @Test
+    fun aStopEntersTheStoppingTransitionUntilTelemetryConfirms() {
+        val stopping = reduceRuntimeResult(
+            DashboardUiState(),
+            ControlResult.Ok(RuntimeState(running = false, sink = SinkState.Absent)),
+            RuntimeCommand.Stop,
+        )
+        assertEquals(RuntimeTransition.Stopping, stopping.transition)
+
+        // A stale frame that still reports running keeps "stopping"...
+        val stale = reduceDashboardState(stopping, TelemetryEvent.Online(sampleStatus()))
+        assertEquals(RuntimeTransition.Stopping, stale.transition)
+
+        // ...and the first frame without running clears it.
+        val stoppedStatus = sampleStatus().let { it.copy(runtime = it.runtime.copy(running = false)) }
+        val settled = reduceDashboardState(stale, TelemetryEvent.Online(stoppedStatus))
+        assertNull(settled.transition)
+    }
+
+    @Test
+    fun deviceInitializingClearsTheLocalStartingTransition() {
+        val starting = DashboardUiState(transition = RuntimeTransition.Starting)
+
+        // The device confirms by reporting initializing: the UI now reads it from the status.
+        val confirmed = sampleStatus().let {
+            it.copy(runtime = it.runtime.copy(running = false, initializing = true))
+        }
+        val state = reduceDashboardState(starting, TelemetryEvent.Online(confirmed))
+
+        assertNull(state.transition)
+        assertEquals(RuntimeButtonState.Starting, runtimeButtonState(state))
+    }
+
+    @Test
+    fun runtimeButtonStateFollowsTheDeviceAndTheTransition() {
+        assertEquals(RuntimeButtonState.Start, runtimeButtonState(DashboardUiState()))
+
+        val stopped = sampleStatus().let { it.copy(runtime = it.runtime.copy(running = false)) }
+        assertEquals(RuntimeButtonState.Start, runtimeButtonState(DashboardUiState(status = stopped)))
+        assertEquals(
+            RuntimeButtonState.Starting,
+            runtimeButtonState(DashboardUiState(transition = RuntimeTransition.Starting)),
+        )
+        assertEquals(
+            RuntimeButtonState.Stopping,
+            runtimeButtonState(DashboardUiState(transition = RuntimeTransition.Stopping)),
+        )
+        assertEquals(
+            RuntimeButtonState.Stop,
+            runtimeButtonState(DashboardUiState(status = sampleStatus())),
+        )
     }
 
     @Test

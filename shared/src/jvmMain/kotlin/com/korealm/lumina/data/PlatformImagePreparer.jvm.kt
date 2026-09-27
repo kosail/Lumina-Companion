@@ -6,7 +6,9 @@ import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import javax.imageio.IIOImage
 import javax.imageio.ImageIO
+import javax.imageio.ImageWriteParam
 
 /**
  * Desktop (JVM) [ImagePreparer]: `ImageIO` decode + downscale + JPEG encode.
@@ -31,9 +33,37 @@ private object JvmImagePreparer : ImagePreparer {
         } ?: return null
 
         val target = toRgb(scaleDown(source, RECOMMENDED_MAX_IMAGE_HEIGHT_PX))
-        return ByteArrayOutputStream().use { out ->
-            if (!ImageIO.write(target, "jpg", out)) null else out.toByteArray()
+        return encodeJpeg(target)
+    }
+}
+
+/**
+ * Encodes [image] as JPEG at [JPEG_QUALITY] (contract §4.10, CHG-FE-0036).
+ *
+ * `ImageIO.write(.., "jpg", ..)` uses an implicit default (~0.75); configuring the writer explicitly
+ * matches the Android `Bitmap.compress` path so both platforms send the same quality. Returns `null`
+ * when no JPEG writer is available (never on a normal JDK).
+ */
+private fun encodeJpeg(image: BufferedImage): ByteArray? {
+    val writers = ImageIO.getImageWritersByFormatName("jpeg")
+    if (!writers.hasNext()) return null
+    val writer = writers.next()
+    try {
+        // `defaultWriteParam`/`createImageOutputStream` are platform-typed and could be null on an
+        // unusual JDK; degrade to "unpreparable" rather than risk an NPE (FE-INV-033).
+        val param = writer.defaultWriteParam ?: return null
+        param.compressionMode = ImageWriteParam.MODE_EXPLICIT
+        param.compressionQuality = JPEG_QUALITY / 100f
+
+        val out = ByteArrayOutputStream()
+        val stream = ImageIO.createImageOutputStream(out) ?: return null
+        stream.use {
+            writer.output = it
+            writer.write(null, IIOImage(image, null, null), param)
         }
+        return out.toByteArray()
+    } finally {
+        writer.dispose()
     }
 }
 

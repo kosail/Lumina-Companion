@@ -48,6 +48,35 @@ class PeopleReducerTest {
     }
 
     @Test
+    fun onlineSnapshotWithAStoppedRuntimeKeepsNamesAndFlagsInactive() {
+        // The device reads names from its persisted store, so a stopped runtime still shows them
+        // (contract §4.1, CHG-FE-0035); the flag drives the "Lúmina detenida" note.
+        val state = reducePeopleSnapshot(
+            PeopleUiState(),
+            PeopleSnapshot(online = true, names = listOf("Ana"), runtimeActive = false),
+        )
+
+        assertEquals(ConnectionState.Online, state.connection)
+        assertEquals(listOf("Ana"), state.people)
+        assertFalse(state.runtimeActive)
+    }
+
+    @Test
+    fun offlineSnapshotKeepsTheLastKnownRuntimeFlag() {
+        val online = reducePeopleSnapshot(
+            PeopleUiState(),
+            PeopleSnapshot(online = true, names = listOf("Ana"), runtimeActive = false),
+        )
+
+        val offline = reducePeopleSnapshot(online, PeopleSnapshot(online = false, names = emptyList()))
+
+        assertEquals(ConnectionState.Offline, offline.connection)
+        assertEquals(listOf("Ana"), offline.people)
+        // The flag is kept; the screen only shows the note while online.
+        assertFalse(offline.runtimeActive)
+    }
+
+    @Test
     fun progressCarriesPhaseAndCountsAndTheNotice() {
         val started = reduceEnrollEvent(
             PeopleUiState(),

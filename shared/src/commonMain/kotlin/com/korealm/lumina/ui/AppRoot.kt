@@ -37,7 +37,10 @@ import lumina.shared.generated.resources.msg_need_name
 import lumina.shared.generated.resources.msg_people_refreshed
 import lumina.shared.generated.resources.msg_person_enrolled
 import lumina.shared.generated.resources.msg_photos_not_prepared
+import lumina.shared.generated.resources.msg_runtime_start_failed
+import lumina.shared.generated.resources.msg_runtime_start_unconfirmed
 import lumina.shared.generated.resources.msg_runtime_started
+import lumina.shared.generated.resources.msg_runtime_stop_failed
 import lumina.shared.generated.resources.msg_runtime_stopped
 import lumina.shared.generated.resources.msg_too_many_photos
 import lumina.shared.generated.resources.msg_unauthorized
@@ -197,6 +200,9 @@ private fun controlMessageText(message: ControlMessage): String = when (message)
     ControlMessage.Unmuted -> stringResource(Res.string.msg_unmuted)
     ControlMessage.RuntimeStarted -> stringResource(Res.string.msg_runtime_started)
     ControlMessage.RuntimeStopped -> stringResource(Res.string.msg_runtime_stopped)
+    ControlMessage.RuntimeStartUnconfirmed -> stringResource(Res.string.msg_runtime_start_unconfirmed)
+    ControlMessage.RuntimeStartFailed -> stringResource(Res.string.msg_runtime_start_failed)
+    ControlMessage.RuntimeStopFailed -> stringResource(Res.string.msg_runtime_stop_failed)
     ControlMessage.Unauthorized -> stringResource(Res.string.msg_unauthorized)
     ControlMessage.Busy -> stringResource(Res.string.msg_busy)
     ControlMessage.BadRequest -> stringResource(Res.string.msg_bad_request)

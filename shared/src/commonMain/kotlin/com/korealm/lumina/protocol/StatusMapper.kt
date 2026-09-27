@@ -9,8 +9,10 @@ package com.korealm.lumina.protocol
  * - out-of-range values (`volume` outside `0..100`) are treated as unknown, not shown raw
  * - `tempC`/`load1`/`memAvailableKb` are already nullable on the wire
  * - `enroll.total <= 0` and `enroll.captured < 0` are non-conforming and normalized to `null`
- * - when the runtime is unreachable the contract reports `people == []`; we also normalize it to an
- *   empty list defensively so a stale list is never shown as live (FE-INV-031).
+ *
+ * `people` is passed through unchanged: the device reads it from its persisted enrolled store, so the
+ * list stays valid even when the runtime is stopped (contract §4.1). The screen keeps the last-known
+ * list across an offline blip (see `PeopleViewModel`).
  *
  * The mapper is pure: no clock, no I/O. [receivedAtMs] is passed in by the transport so the function
  * stays deterministic and unit-testable (the device `ts` may jump; ordering uses arrival time).
@@ -30,6 +32,7 @@ fun WireStatus.toDomain(receivedAtMs: Long): DeviceStatus {
             uptimeSeconds = runtime.uptimeS,
             sink = SinkState.fromWire(runtime.sink),
             faceCount = runtime.faceCount,
+            initializing = runtime.initializing,
         ),
         core = CoreInfo(
             fps = core.fps,
@@ -46,8 +49,9 @@ fun WireStatus.toDomain(receivedAtMs: Long): DeviceStatus {
             luma = luma,
             dayNight = if (luma == null) DayNight.Unknown else DayNight.fromWire(sensors.dayNight),
         ),
-        // Defensive: never present last-known names as live when the runtime is down.
-        people = if (reachable) people else emptyList(),
+        // The device sources `people` from its persisted store, so keep it as-is: the list is valid
+        // even while the runtime is stopped (contract §4.1, CHG-FE-0035).
+        people = people,
         enroll = EnrollInfo(
             active = enroll.active,
             phase = enroll.phase?.let { EnrollPhase.fromWire(it) },

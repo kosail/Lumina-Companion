@@ -2,6 +2,8 @@ package com.korealm.lumina.ui.dashboard
 
 import com.korealm.lumina.data.FakeDeviceRepository
 import com.korealm.lumina.protocol.ControlResult
+import com.korealm.lumina.protocol.RuntimeState
+import com.korealm.lumina.protocol.SinkState
 import com.korealm.lumina.testing.sampleStatus
 import com.korealm.lumina.transport.TelemetryEvent
 import com.korealm.lumina.ui.ConnectionState
@@ -142,6 +144,121 @@ class DashboardViewModelTest {
 
         assertEquals(1, repository.runtimeStartCalls)
         assertEquals(0, repository.runtimeStopCalls)
+    }
+
+    @Test
+    fun startingBlocksASecondToggleUntilTelemetryConfirms() = runTest(dispatcher) {
+        val events = MutableSharedFlow<TelemetryEvent>(extraBufferCapacity = 8)
+        val repository = FakeDeviceRepository(events)
+        repository.runtimeResult =
+            ControlResult.Ok(RuntimeState(running = true, sink = SinkState.Absent, initializing = true))
+        val viewModel = DashboardViewModel(repository)
+        runCurrent()
+
+        val stopped = sampleStatus().let { it.copy(runtime = it.runtime.copy(running = false)) }
+        events.emit(TelemetryEvent.Online(stopped))
+        runCurrent()
+
+        viewModel.onRuntimeToggle()
+        runCurrent()
+        assertEquals(1, repository.runtimeStartCalls)
+        assertEquals(RuntimeTransition.Starting, viewModel.uiState.value.transition)
+
+        // A second tap while the start settles must be ignored (no re-send during the ~18-60 s boot).
+        viewModel.onRuntimeToggle()
+        runCurrent()
+        assertEquals(1, repository.runtimeStartCalls)
+
+        // The device confirms with `initializing`: the local transition clears; the button still
+        // reads "starting" from the status.
+        val initializing = sampleStatus().let {
+            it.copy(runtime = it.runtime.copy(running = false, initializing = true))
+        }
+        events.emit(TelemetryEvent.Online(initializing))
+        runCurrent()
+        assertNull(viewModel.uiState.value.transition)
+        assertEquals(RuntimeButtonState.Starting, runtimeButtonState(viewModel.uiState.value))
+
+        // Ready: the button becomes "stop".
+        events.emit(TelemetryEvent.Online(sampleStatus()))
+        runCurrent()
+        assertEquals(RuntimeButtonState.Stop, runtimeButtonState(viewModel.uiState.value))
+    }
+
+    @Test
+    fun anUnconfirmedStartClearsAfterTheGraceWindow() = runTest(dispatcher) {
+        val events = MutableSharedFlow<TelemetryEvent>(extraBufferCapacity = 8)
+        val repository = FakeDeviceRepository(events)
+        repository.runtimeResult =
+            ControlResult.Ok(RuntimeState(running = true, sink = SinkState.Absent, initializing = true))
+        val viewModel = DashboardViewModel(repository)
+        runCurrent()
+
+        val stopped = sampleStatus().let { it.copy(runtime = it.runtime.copy(running = false)) }
+        events.emit(TelemetryEvent.Online(stopped))
+        runCurrent()
+
+        viewModel.onRuntimeToggle()
+        runCurrent()
+        assertEquals(RuntimeTransition.Starting, viewModel.uiState.value.transition)
+
+        advanceTimeBy(RUNTIME_START_GRACE_MS + 1)
+        runCurrent()
+
+        assertNull(viewModel.uiState.value.transition)
+        assertEquals(ControlMessage.RuntimeStartUnconfirmed, viewModel.uiState.value.message?.message)
+    }
+
+    @Test
+    fun anOldAgentStartHoldsUntilTelemetryConfirms() = runTest(dispatcher) {
+        val events = MutableSharedFlow<TelemetryEvent>(extraBufferCapacity = 8)
+        val repository = FakeDeviceRepository(events)
+        // An agent that predates the additive `initializing` flag replies `running=true` (is-active)
+        // but cannot say whether the runtime is ready.
+        repository.runtimeResult = ControlResult.Ok(RuntimeState(running = true, sink = SinkState.Absent))
+        val viewModel = DashboardViewModel(repository)
+        runCurrent()
+
+        val stopped = sampleStatus().let { it.copy(runtime = it.runtime.copy(running = false)) }
+        events.emit(TelemetryEvent.Online(stopped))
+        runCurrent()
+
+        viewModel.onRuntimeToggle()
+        runCurrent()
+        assertEquals(RuntimeTransition.Starting, viewModel.uiState.value.transition)
+
+        // The short grace must not fire: an old agent can take up to ~201 s to become ready.
+        advanceTimeBy(RUNTIME_START_GRACE_MS + 1)
+        runCurrent()
+        assertEquals(RuntimeTransition.Starting, viewModel.uiState.value.transition)
+
+        // Telemetry reports the runtime up: the transition clears.
+        events.emit(TelemetryEvent.Online(sampleStatus()))
+        runCurrent()
+        assertNull(viewModel.uiState.value.transition)
+    }
+
+    @Test
+    fun anOldAgentStartFallsBackAfterTheLongWindow() = runTest(dispatcher) {
+        val events = MutableSharedFlow<TelemetryEvent>(extraBufferCapacity = 8)
+        val repository = FakeDeviceRepository(events)
+        repository.runtimeResult = ControlResult.Ok(RuntimeState(running = true, sink = SinkState.Absent))
+        val viewModel = DashboardViewModel(repository)
+        runCurrent()
+
+        val stopped = sampleStatus().let { it.copy(runtime = it.runtime.copy(running = false)) }
+        events.emit(TelemetryEvent.Online(stopped))
+        runCurrent()
+
+        viewModel.onRuntimeToggle()
+        runCurrent()
+        assertEquals(RuntimeTransition.Starting, viewModel.uiState.value.transition)
+
+        // No confirmation ever arrives: the long fallback finally clears it with a neutral message.
+        advanceTimeBy(RUNTIME_START_FALLBACK_MS + 1)
+        runCurrent()
+        assertNull(viewModel.uiState.value.transition)
+        assertEquals(ControlMessage.RuntimeStartUnconfirmed, viewModel.uiState.value.message?.message)
     }
 
     @Test

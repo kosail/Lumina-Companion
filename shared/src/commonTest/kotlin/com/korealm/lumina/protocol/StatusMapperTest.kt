@@ -24,6 +24,7 @@ class StatusMapperTest {
         tempC: Double? = 46.2,
         load1: Double? = 1.8,
         sink: String = "ready",
+        initializing: Boolean = false,
         enrollActive: Boolean = false,
         enrollPhase: String? = null,
         captured: Int? = null,
@@ -33,6 +34,7 @@ class StatusMapperTest {
         runtime = WireRuntime(
             reachable = reachable,
             running = reachable,
+            initializing = initializing,
             uptimeS = 10,
             sink = sink,
             faceCount = people.size,
@@ -85,12 +87,19 @@ class StatusMapperTest {
     }
 
     @Test
-    fun clearsPeopleWhenUnreachable() {
-        // Even if a stale device sends names, an unreachable runtime must not show a live list.
-        val status = wire(reachable = false, people = listOf("Stale"), sink = "absent").toDomain(0L)
-        assertEquals(emptyList(), status.people)
+    fun keepsPeopleWhenUnreachable() {
+        // The device reads names from its persisted store, so they stay valid while the runtime is
+        // stopped (contract §4.1, CHG-FE-0035).
+        val status = wire(reachable = false, people = listOf("Ana"), sink = "absent").toDomain(0L)
+        assertEquals(listOf("Ana"), status.people)
         assertEquals(false, status.runtime.reachable)
         assertEquals(SinkState.Absent, status.runtime.sink)
+    }
+
+    @Test
+    fun mapsTheInitializingFlag() {
+        assertEquals(true, wire(initializing = true).toDomain(0L).runtime.initializing)
+        assertEquals(false, wire().toDomain(0L).runtime.initializing)
     }
 
     @Test

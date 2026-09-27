@@ -63,6 +63,7 @@
     <string name="people_add_photos">Desde fotos</string>
     <string name="people_cancel">Cancelar inscripción</string>
     <string name="people_runtime_down">Lúmina no está en ejecución. Inícala para continuar.</string>
+    <string name="people_runtime_stopped">Lúmina detenida — mostrando personas registradas</string>
     <string name="people_no_face">No se detectó un rostro; acerca la cara a la cámara</string>
 
     <!-- Enrollment phases and progress (announced via liveRegion) -->
@@ -86,6 +87,9 @@
     <string name="msg_unmuted">Sonido activado</string>
     <string name="msg_runtime_started">Lúmina iniciada</string>
     <string name="msg_runtime_stopped">Lúmina detenida</string>
+    <string name="msg_runtime_start_unconfirmed">No se pudo confirmar el inicio de Lúmina</string>
+    <string name="msg_runtime_start_failed">No se pudo iniciar Lúmina</string>
+    <string name="msg_runtime_stop_failed">No se pudo detener Lúmina</string>
     <string name="msg_unauthorized">Token incorrecto</string>
     <string name="msg_busy">Hay una inscripción en curso</string>
     <string name="msg_bad_request">Solicitud no válida</string>
@@ -96,6 +100,8 @@
     <string name="section_control">Control</string>
     <string name="action_start">Iniciar Lúmina</string>
     <string name="action_stop">Detener Lúmina</string>
+    <string name="action_starting">Iniciando Lúmina…</string>
+    <string name="action_stopping">Deteniendo Lúmina…</string>
     <string name="audio_not_ready">Audio no listo</string>
     <string name="token_warning_title">Token incorrecto</string>
     <string name="token_warning_body">Abre Ajustes y verifica el token del dispositivo.</string>

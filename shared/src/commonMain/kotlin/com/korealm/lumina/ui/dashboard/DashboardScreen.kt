@@ -1,14 +1,6 @@
 package com.korealm.lumina.ui.dashboard
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -24,68 +16,14 @@ import com.korealm.lumina.ui.ConnectionState
 import com.korealm.lumina.ui.components.InfoRow
 import com.korealm.lumina.ui.components.SectionTitle
 import com.korealm.lumina.ui.components.TokenWarning
-import kotlin.math.roundToInt
-import lumina.shared.generated.resources.Res
-import lumina.shared.generated.resources.action_start
-import lumina.shared.generated.resources.action_stop
-import lumina.shared.generated.resources.audio_not_ready
-import lumina.shared.generated.resources.conn_connecting
-import lumina.shared.generated.resources.conn_incompatible
-import lumina.shared.generated.resources.conn_offline
-import lumina.shared.generated.resources.conn_online
-import lumina.shared.generated.resources.day_day
-import lumina.shared.generated.resources.day_night
-import lumina.shared.generated.resources.day_unknown
-import lumina.shared.generated.resources.label_audio
-import lumina.shared.generated.resources.label_daynight
-import lumina.shared.generated.resources.label_faces
-import lumina.shared.generated.resources.label_load
-import lumina.shared.generated.resources.label_memory
-import lumina.shared.generated.resources.label_muted
-import lumina.shared.generated.resources.label_running
-import lumina.shared.generated.resources.label_speed
-import lumina.shared.generated.resources.label_temperature
-import lumina.shared.generated.resources.label_uptime
-import lumina.shared.generated.resources.label_volume
-import lumina.shared.generated.resources.section_control
-import lumina.shared.generated.resources.section_device
-import lumina.shared.generated.resources.section_performance
-import lumina.shared.generated.resources.section_sensors
-import lumina.shared.generated.resources.sink_absent
-import lumina.shared.generated.resources.sink_ready
-import lumina.shared.generated.resources.sink_waiting
-import lumina.shared.generated.resources.value_no
-import lumina.shared.generated.resources.value_unknown
-import lumina.shared.generated.resources.value_yes
+import lumina.shared.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.HorizontalDivider
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Slider
-import top.yukonga.miuix.kmp.basic.Switch
-import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
-import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.Layers
-import top.yukonga.miuix.kmp.icon.extended.Pause
-import top.yukonga.miuix.kmp.icon.extended.Phone
-import top.yukonga.miuix.kmp.icon.extended.Play
-import top.yukonga.miuix.kmp.icon.extended.Reset
-import top.yukonga.miuix.kmp.icon.extended.Scan
-import top.yukonga.miuix.kmp.icon.extended.Stopwatch
-import top.yukonga.miuix.kmp.icon.extended.Theme
-import top.yukonga.miuix.kmp.icon.extended.Timer
-import top.yukonga.miuix.kmp.icon.extended.Tune
-import top.yukonga.miuix.kmp.icon.extended.Update
-import top.yukonga.miuix.kmp.icon.extended.VolumeOff
-import top.yukonga.miuix.kmp.icon.extended.VolumeUp
+import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.roundToInt
 
 /**
  * The dashboard tab: a color-coded connection banner, read-only status cards, and the volume/mute
@@ -163,21 +101,35 @@ fun DashboardScreen(
                 modifier = Modifier.padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                // The button reflects the device's initializing/running state plus any settling
+                // transition, and is disabled while starting/stopping or during an enrollment
+                // (which stops the runtime itself) — CHG-FE-0034/0035.
+                val buttonState = runtimeButtonState(state)
+                val transitioning = buttonState == RuntimeButtonState.Starting ||
+                    buttonState == RuntimeButtonState.Stopping
                 Button(
                     onClick = actions.onRuntimeToggle,
-                    enabled = online && state.pending == null,
+                    enabled = online && state.pending == null && !transitioning && !status.enroll.active,
                     colors = ButtonDefaults.buttonColorsPrimary(),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Icon(
-                        imageVector = if (status.runtime.running) MiuixIcons.Pause else MiuixIcons.Play,
+                        imageVector = when (buttonState) {
+                            RuntimeButtonState.Stop, RuntimeButtonState.Stopping -> MiuixIcons.Pause
+                            RuntimeButtonState.Start, RuntimeButtonState.Starting -> MiuixIcons.Play
+                        },
                         contentDescription = null,
                         modifier = Modifier.size(22.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = stringResource(
-                            if (status.runtime.running) Res.string.action_stop else Res.string.action_start,
+                            when (buttonState) {
+                                RuntimeButtonState.Starting -> Res.string.action_starting
+                                RuntimeButtonState.Stopping -> Res.string.action_stopping
+                                RuntimeButtonState.Stop -> Res.string.action_stop
+                                RuntimeButtonState.Start -> Res.string.action_start
+                            },
                         ),
                     )
                 }

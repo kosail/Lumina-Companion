@@ -20,6 +20,8 @@ enum class PendingPeopleAction {
  *
  * @param connection current connection state (shared with the dashboard).
  * @param people the enrolled names to show.
+ * @param runtimeActive true when the runtime is running or initializing; when false (and online) the
+ *   screen notes that the names come from the enrolled store while Lúmina is stopped.
  * @param refreshing true while a `people.list` refresh is in flight.
  * @param name the "add person" name field.
  * @param nameError true when the name was empty on a submit attempt.
@@ -39,6 +41,7 @@ enum class PendingPeopleAction {
 data class PeopleUiState(
     val connection: ConnectionState = ConnectionState.Connecting,
     val people: List<String> = emptyList(),
+    val runtimeActive: Boolean = true,
     val refreshing: Boolean = false,
     val name: String = "",
     val nameError: Boolean = false,

@@ -21,10 +21,18 @@ class PeopleRepositoryImpl(
 
     override fun people(): Flow<PeopleSnapshot> = device.status().map { event ->
         when (event) {
-            is TelemetryEvent.Online -> PeopleSnapshot(online = true, names = event.status.people)
+            is TelemetryEvent.Online -> PeopleSnapshot(
+                online = true,
+                // The device sources names from its persisted store, so they are valid even when the
+                // runtime is stopped (contract §4.1, CHG-FE-0035).
+                names = event.status.people,
+                // "Active" covers initializing too, so the "detenida" note does not flash during the
+                // ~18-60 s startup.
+                runtimeActive = event.status.runtime.running || event.status.runtime.initializing,
+            )
             // Offline and incompatible both mean "no live data"; the view model keeps the last list.
-            TelemetryEvent.Offline -> PeopleSnapshot(online = false, names = emptyList())
-            is TelemetryEvent.Incompatible -> PeopleSnapshot(online = false, names = emptyList())
+            TelemetryEvent.Offline -> PeopleSnapshot(online = false, names = emptyList(), runtimeActive = false)
+            is TelemetryEvent.Incompatible -> PeopleSnapshot(online = false, names = emptyList(), runtimeActive = false)
         }
     }
 

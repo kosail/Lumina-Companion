@@ -31,17 +31,23 @@ data class WireStatus(
     val runtime: WireRuntime,
     val core: WireCore = WireCore(),
     val sensors: WireSensors,
-    /** Enrolled names in insertion order; `[]` when the runtime is unreachable. */
+    /** Enrolled names in insertion order, read from the device's persisted store (contract §4.1). */
     val people: List<String> = emptyList(),
     val enroll: WireEnroll = WireEnroll(),
 )
 
-/** `status.runtime` (`API_CONTRACT.md` §4.1). All fields are required by the contract. */
+/** `status.runtime` (`API_CONTRACT.md` §4.1). */
 @Serializable
 data class WireRuntime(
     /** `false` when the runtime status file is older than 5 s (stopped/crashed). */
     val reachable: Boolean,
+    /** The runtime's own status says it is running; `false` while initializing. */
     val running: Boolean,
+    /**
+     * Additive/optional (contract §4.1): the unit is active but has not reported a fresh running
+     * status yet. Defaults to `false`, so a device that omits it (older agent) behaves as before.
+     */
+    val initializing: Boolean = false,
     val uptimeS: Int,
     /** `ready` | `waiting` | `absent` (kept as [String] for forward compatibility). */
     val sink: String,
@@ -68,13 +74,23 @@ data class WireCore(
 )
 
 /**
- * `status.sensors` (`API_CONTRACT.md` §4.1). All four fields are required.
+ * `status.sensors` (`API_CONTRACT.md` §4.1).
  * Sentinels: `volume == -1` and `luma < 0` mean "unknown" and are normalized in [toDomain].
+ *
+ * `muted`, `luma` and `dayNight` are required; `volume` has a default so a device that sends `null`
+ * (or omits it) still decodes (CHG-FE-0038).
  */
 @Serializable
 data class WireSensors(
-    /** `0..100`, or `-1` when the mixer is unknown. */
-    val volume: Int,
+    /**
+     * `0..100`, or `-1` when the mixer is unknown (contract §4.1).
+     *
+     * The default is deliberate resilience (CHG-FE-0038): the runtime agent has been observed sending
+     * `null` for an unknown volume (rather than the contract's `-1`). With `coerceInputValues = true`,
+     * a default turns that `null` (or an absent field) into `-1`, so the whole telemetry frame is not
+     * dropped when the BlueALSA mixer is unavailable. [toDomain] then maps `-1` to `null`.
+     */
+    val volume: Int = -1,
     val muted: Boolean,
     /** Mean frame luminance `0..1`, or `-1` when unknown. */
     val luma: Double,

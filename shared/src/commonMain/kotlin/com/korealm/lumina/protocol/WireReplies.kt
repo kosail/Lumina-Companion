@@ -34,7 +34,13 @@ data class WirePeople(
 @Serializable
 data class WireRuntimeState(
     val t: String = "runtime.state",
+    /** `systemctl is-active`: true as soon as the unit is active, before it is ready. */
     val running: Boolean,
+    /**
+     * Additive/optional (contract §4.4): the unit is active but a fresh running status has not
+     * arrived yet. Defaults to `false` so an older agent's reply still decodes.
+     */
+    val initializing: Boolean = false,
     /** `ready` | `waiting` | `absent` (kept as [String] for forward compatibility). */
     val sink: String,
 )

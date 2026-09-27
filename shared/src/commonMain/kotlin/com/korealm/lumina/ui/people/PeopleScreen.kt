@@ -40,6 +40,7 @@ import lumina.shared.generated.resources.people_name_label
 import lumina.shared.generated.resources.people_no_face
 import lumina.shared.generated.resources.people_refresh
 import lumina.shared.generated.resources.people_runtime_down
+import lumina.shared.generated.resources.people_runtime_stopped
 import lumina.shared.generated.resources.people_title
 import lumina.shared.generated.resources.section_people
 import org.jetbrains.compose.resources.stringResource
@@ -124,6 +125,16 @@ fun PeopleScreen(
                     if (index > 0) HorizontalDivider()
                     InfoRow(label = name, value = "", icon = MiuixIcons.Contacts)
                 }
+            }
+            if (online && !state.runtimeActive) {
+                // The names come from the enrolled store, so they stay valid while Lúmina is stopped;
+                // a polite live region explains why they are still listed (FE-INV-010, CHG-FE-0035).
+                InfoRow(
+                    label = stringResource(Res.string.people_runtime_stopped),
+                    value = "",
+                    icon = MiuixIcons.Info,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
             }
             HorizontalDivider()
             Button(

@@ -45,6 +45,18 @@ class ReplyDecodeTest {
         val reply = assertIs<Reply.Runtime>(decoded("""{"t":"runtime.state","running":true,"sink":"ready"}"""))
         assertEquals(true, reply.state.running)
         assertEquals(SinkState.Ready, reply.state.sink)
+        // `initializing` is additive/optional (contract §4.4): an older agent omits it and it
+        // defaults to false, so the reply still decodes (CHG-FE-0034).
+        assertEquals(false, reply.state.initializing)
+    }
+
+    @Test
+    fun decodesRuntimeStateInitializing() {
+        val reply = assertIs<Reply.Runtime>(
+            decoded("""{"t":"runtime.state","running":true,"initializing":true,"sink":"absent"}"""),
+        )
+        assertEquals(true, reply.state.initializing)
+        assertEquals(SinkState.Absent, reply.state.sink)
     }
 
     @Test

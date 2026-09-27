@@ -1,5 +1,10 @@
 # Lúmina — Companion App
 
+> **Archived — built for the Innovatec 2026 (InnovaTecNM) contest.**
+> Lúmina was created for the **Innovatec 2026 (InnovaTecNM)** student innovation contest. The
+> project did not advance beyond the **local stage**. This repository is **archived** (read-only)
+> and preserved as the final state of the companion client; no further development is planned.
+
 The phone and desktop app for **Lúmina**, an edge-AI assistive device that narrates the world
 through bone-conduction audio for **blind and low-vision people**.
 
@@ -24,6 +29,42 @@ recognize. Everything runs **on the local network** — no cloud, no accounts, n
 
 **Out of scope:** camera preview/streaming, currency recognition, navigation, earbud battery,
 detecting objects, deleting people, and anything account- or subscription-related.
+
+---
+
+## Final state (what shipped)
+
+Verified on a desktop build and a physical Android device with TalkBack (`docs/VALIDATION.md`,
+`docs/ACCESSIBILITY.md`):
+
+- **Status dashboard** — reachability, runtime state (including the tri-state `initializing`),
+  temperature, memory, FPS, volume, day/night, and enrolled people.
+- **Volume** — read, set, and mute the device audio.
+- **People** — list enrolled people (visible even while the runtime is stopped) and add someone new.
+- **Enrollment** — add a person via the device camera (live) or photos from the gallery.
+- **Runtime control** — start/stop with a guarded toggle plus grace/fallback handling.
+- **Accessibility** — TalkBack-tested, large touch targets, Spanish-only strings, live state
+  announcements.
+- **Targets** — Android and Desktop (JVM) from one shared codebase.
+
+## Known limitations
+
+Non-blocking gaps recorded at the end of the project:
+
+- A user-selectable **Light/Dark/System** override is not implemented (the app follows the system).
+- **TalkBack hint language** ("double tap to activate") is owned by TalkBack, not the app; aligning
+  it means changing the device/TalkBack language.
+- The desktop `TODO(di)` ViewModel wiring is retained as a developer-loop shortcut.
+- `shared/androidMain` does not yet depend on `androidx.activity:activity-compose` (a Phase-4 build
+  item); it lives in `androidApp` for now.
+- **Out of scope:** camera preview/streaming, currency recognition, navigation, earbud battery,
+  deleting people, and anything account- or subscription-related.
+
+## Contest and outcome
+
+Lúmina was built for the **Innovatec 2026 (InnovaTecNM)** contest. The team reached the **local
+stage** and the project **did not advance**. This repository is archived as the final state; the
+device runtime is archived separately in `kosail/Lumina`.
 
 ---
 

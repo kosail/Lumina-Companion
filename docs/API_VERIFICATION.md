@@ -715,3 +715,58 @@ Confirmed: language/region/theme/density qualifiers (`values-en`, `drawable-dark
 unqualified directory as the fallback; rasterized WebP is supported. Recorded because English and a
 theme-qualified logo variant were evaluated (English deferred — CHG-FE-0030; dark logo handled in code
 per CHG-FE-0031).
+
+## 13. Post-phase-6 additions (runtime tri-state + people retention)
+
+### 13.1 Additive `initializing` field on `status.runtime` / `runtime.state` — contract `proto 1` — confidence `1.00`
+
+**Source:** the runtime repository's `docs/API_CONTRACT.md` §4.1/§4.4/§10 and runtime `CHG-0091`
+(accessed 2026-09-22). This is the app's own read-only wire contract, so it is authoritative here.
+
+Confirmed: `initializing` is an **optional, additive** boolean (`proto` stays 1) that is true while
+`lumina.service` is active but has not yet reported a fresh running status. The client ignores unknown
+keys (`LuminaJson.ignoreUnknownKeys = true`, §3.2), so decoding an older agent that omits it is safe;
+both `WireRuntime` and `WireRuntimeState` give it a `false` default (CHG-FE-0034).
+
+### 13.2 `people` / `faceCount` are store-sourced (available while stopped) — contract `proto 1` — confidence `1.00`
+
+**Source:** runtime `docs/API_CONTRACT.md` §4.1/§4.3 and runtime `CHG-0090` (accessed 2026-09-22).
+
+Confirmed: the agent reads enrolled names from the persisted store, so telemetry `people` (and
+`people.list`) are valid even when `runtime.reachable` is false. The app therefore passes `people`
+through unchanged and keeps the last-known list across an offline blip (CHG-FE-0035).
+
+### 13.3 No new dependencies
+
+The desktop JPEG writer uses `javax.imageio.ImageWriter`/`ImageWriteParam`, part of the JDK; no
+dependency was added (CHG-FE-0036).
+
+### 13.4 Runtime startup windows used by the app's grace timers — confidence `1.00`
+
+**Source:** the runtime repository's `docs/PERFORMANCE.md` §14.3, `docs/BLUETOOTH.md` §2,
+`src/audio/sink_watchdog.hpp`, and `INVARIANTS.md` INV-053 (accessed 2026-09-22).
+
+Confirmed bounds for an app-initiated `runtime.start` (`systemctl start lumina`):
+- model load ≈ **21 s** (detector 2.1 + Piper 14.5 + face 3.8 + cache);
+- BlueALSA sink watchdog: 60 × 3000 ms = **180 s**, after which the runtime powers off / exits 2;
+- so the longest the unit can be active-but-not-ready is ≈ **201 s**, and a real failure turns into an
+  offline device (clearing the app's transition) rather than a long silence.
+
+The app therefore uses two windows (CHG-FE-0037): `RUNTIME_START_GRACE_MS = 10_000` when the reply
+carries the additive `initializing` flag (confirmed within ~1 s; a telemetry outage trips the 5 s
+offline threshold first and cancels the timer), and `RUNTIME_START_FALLBACK_MS = 240_000` when the
+reply only carries `running` (an agent that predates the flag), so it never false-fails a start that
+is genuinely still initializing.
+
+### 13.5 `sensors.volume` null tolerance — confidence `1.00`
+
+**Source:** the runtime agent's live telemetry datagram (captured 2026-09-22) and the app's
+`LuminaJson` configuration (`coerceInputValues = true`, verified in §3.2).
+
+Confirmed: the agent emitted `"volume":null` when the BlueALSA mixer was unavailable, while
+`API_CONTRACT.md` §4.1 specifies the integer `-1` sentinel. Because `WireSensors.volume` had no
+default, `coerceInputValues` could not rescue the `null` and the whole frame was rejected. The app now
+declares `volume: Int = -1`; the existing `coercesNullValuesToDefaults` test already proves
+`coerceInputValues` maps `null` to a primitive default, and the new `StatusDecodeTest` cases cover
+`"volume":null` and an absent field (CHG-FE-0038). The agent is also corrected to emit `-1` (runtime
+CHG-0093), so the app fix is defence-in-depth.

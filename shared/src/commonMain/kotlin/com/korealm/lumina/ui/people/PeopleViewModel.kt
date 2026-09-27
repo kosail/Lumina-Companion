@@ -208,13 +208,18 @@ class PeopleViewModel(
 /**
  * Pure reduction of one telemetry-driven people snapshot.
  *
- * On online it adopts the live names; offline it keeps the last-known list so a temporary drop does
- * not erase the screen (contract §5.4: people may be shown from the last-known list).
+ * On online it adopts the live names (from the device's persisted store, so they are valid even
+ * while the runtime is stopped) and the runtime-active flag; offline it keeps the last-known list
+ * and flag so a temporary drop does not erase the screen (contract §5.4).
  */
 internal fun reducePeopleSnapshot(current: PeopleUiState, snapshot: PeopleSnapshot): PeopleUiState {
     val connection = if (snapshot.online) ConnectionState.Online else ConnectionState.Offline
     return if (snapshot.online) {
-        current.copy(connection = connection, people = snapshot.names)
+        current.copy(
+            connection = connection,
+            people = snapshot.names,
+            runtimeActive = snapshot.runtimeActive,
+        )
     } else {
         current.copy(connection = connection)
     }

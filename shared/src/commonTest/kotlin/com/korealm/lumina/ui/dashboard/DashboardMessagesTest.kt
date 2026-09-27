@@ -34,6 +34,9 @@ class DashboardMessagesTest {
         assertTrue(ControlMessage.BadRequest.isError)
         assertTrue(ControlMessage.Internal.isError)
         assertTrue(ControlMessage.Io.isError)
+        assertTrue(ControlMessage.RuntimeStartUnconfirmed.isError)
+        assertTrue(ControlMessage.RuntimeStartFailed.isError)
+        assertTrue(ControlMessage.RuntimeStopFailed.isError)
     }
 
     @Test

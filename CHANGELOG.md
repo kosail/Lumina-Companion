@@ -1651,4 +1651,267 @@
   follow_up: >-
     Run desktop + device: confirm the icon now sits 16 dp off the border with an 8 dp gap to the text in
     the name, host, UDP, TCP and token fields; tune the 8 dp gap if you want more separation.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0034 — Consume the additive `initializing` flag; tri-state runtime control
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0034
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: impl
+  status: applied
+  invariants:
+    - FE-INV-001
+    - FE-INV-010
+    - FE-INV-031
+    - FE-INV-041
+    - FE-INV-051
+    - FE-INV-061
+    - FE-INV-062
+  supersedes: null
+  summary: >-
+    Decoded the runtime's additive `initializing` flag (runtime CHG-0091, contract §4.1/§4.4) through
+    WireStatus/WireReplies -> DomainModels -> StatusMapper/Reply (optional, defaults to false so an
+    older agent still decodes), and used it to make the start/stop control tri-state. DashboardUiState
+    gained `transition` (RuntimeTransition.Starting/Stopping) plus a pure `runtimeButtonState(state)`
+    helper; `reduceRuntimeResult` now takes the RuntimeCommand so a start enters Starting only while
+    the device reports initializing and a stop holds Stopping until telemetry confirms. The toggle is
+    disabled and labeled "Iniciando…"/"Deteniendo…" while settling, `onRuntimeToggle` ignores re-taps
+    during a transition, and a 10 s grace job (RUNTIME_START_GRACE_MS) clears an unconfirmed start
+    with the new ControlMessage.RuntimeStartUnconfirmed. The device's `initializing` also drives the
+    "starting" state for an external start the app did not send. New strings action_starting,
+    action_stopping, msg_runtime_start_unconfirmed.
+  rationale: >-
+    After tapping "Iniciar Lúmina" the button re-enabled almost immediately and could re-send start,
+    because the label keyed off telemetry `running` (false until the runtime's status file appears,
+    ~18-60 s) while the reply only cleared `pending`. The agent now reports initializing authoritatively
+    and the app mirrors it, so the user sees the real state and cannot spam commands. The local
+    transition only bridges the gap between the command reply and the next telemetry frame; the device
+    owns the truth thereafter. Additive wire fields keep proto 1 and the client already ignores unknown
+    keys. All user-facing text is es-MX resources.
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/protocol/WireStatus.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/protocol/WireReplies.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/protocol/DomainModels.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/protocol/StatusMapper.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/protocol/Reply.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/dashboard/DashboardUiState.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/dashboard/DashboardViewModel.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/dashboard/DashboardMessages.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/dashboard/DashboardScreen.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/AppRoot.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/composeResources/values/strings.xml
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/protocol/StatusMapperTest.kt
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/protocol/ReplyDecodeTest.kt
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/ui/dashboard/DashboardReducerTest.kt
+    - Lumina-BETA-ANDROID/shared/src/jvmTest/kotlin/com/korealm/lumina/ui/dashboard/DashboardViewModelTest.kt
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Run `./gradlew :shared:allTests :androidApp:assembleDebug` and verify on the device: tapping Start
+    shows "Iniciando Lúmina…" with the toggle disabled until ready, a second tap is ignored, and the
+    button becomes "Detener Lúmina" only once the runtime is up.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0035 — Keep the people list when the runtime is stopped; enrollment coordination
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0035
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: fix
+  status: applied
+  invariants:
+    - FE-INV-001
+    - FE-INV-010
+    - FE-INV-031
+    - FE-INV-041
+    - FE-INV-051
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    Stopped blanking the people list when the runtime is unreachable. StatusMapper no longer maps
+    `people` to `[]` when `runtime.reachable` is false (the runtime agent now reads names from the
+    persisted enrolled store — runtime CHG-0090), so the list survives a stopped runtime, a cold boot
+    and a camera enrollment. Added PeopleSnapshot.runtimeActive (= running || initializing) and
+    PeopleUiState.runtimeActive; the Personas screen shows a polite live-region note
+    (people_runtime_stopped, "Lúmina detenida — mostrando personas registradas") when online but the
+    runtime is stopped. The dashboard runtime toggle is disabled while `status.enroll.active` (the
+    camera route stops the runtime itself). Updated StatusMapperTest (names kept when unreachable) and
+    PeopleReducerTest.
+  rationale: >-
+    The app showed "Aún no hay personas registradas" whenever the runtime was stopped even though
+    people were enrolled, because the mapper defensively emptied the list on unreachable and the agent
+    had no names to send. With the runtime agent sourcing names from the store, the app can trust them
+    and should say why they are shown. During a camera enrollment the runtime is stopped by design
+    (libcamera is single-client), which previously made the list vanish mid-flow; it now stays, and the
+    toggle is locked so the dashboard cannot fight the enrollment. runtimeActive covers initializing so
+    the note does not flash during the startup window.
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/data/PeopleRepository.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/data/PeopleRepositoryImpl.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/protocol/StatusMapper.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/people/PeopleUiState.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/people/PeopleViewModel.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/people/PeopleScreen.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/composeResources/values/strings.xml
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/protocol/StatusMapperTest.kt
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/ui/people/PeopleReducerTest.kt
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Verify on the device: with Lúmina stopped the Personas list shows the enrolled people plus the
+    "detenida" note; a camera enrollment keeps the list visible and the dashboard toggle disabled.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0036 — Desktop image preparer encodes JPEG at the contract quality
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0036
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: fix
+  status: applied
+  invariants:
+    - FE-INV-001
+    - FE-INV-033
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    The desktop (JVM) ImagePreparer now encodes JPEG through an ImageWriter with
+    ImageWriteParam.compressionQuality = JPEG_QUALITY / 100 (0.80) instead of ImageIO.write's implicit
+    default (~0.75), matching the Android Bitmap.compress path and contract §4.10. Resize (height
+    <= 1080, aspect preserved) and the no-EXIF-rotation limitation are unchanged.
+  rationale: >-
+    The contract asks for JPEG ~quality 80; the two platforms should not differ. ImageIO.write's
+    default is 0.75, so an explicit writer is needed. Desktop remains the developer loop, so the
+    JDK's lack of an EXIF reader is still documented rather than worked around (no new dependency).
+  files:
+    - Lumina-BETA-ANDROID/shared/src/jvmMain/kotlin/com/korealm/lumina/data/PlatformImagePreparer.jvm.kt
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Optional: assert the encoded size/quality in JvmImagePreparerTest if a stable metric is found.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0037 — Second-pass fixes for the runtime tri-state control
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0037
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: fix
+  status: applied
+  invariants:
+    - FE-INV-001
+    - FE-INV-031
+    - FE-INV-041
+    - FE-INV-051
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    Aggressive second pass over CHG-FE-0034/0035/0036. (H1) A failed stop no longer sticks: the agent
+    replies with the real `is-active`, so `reduceRuntimeResult` now holds `Stopping` only when the
+    device confirms it is not running; a reply of `running=true` clears the transition and reports
+    RuntimeStopFailed. (M1) Added RuntimeStartFailed/RuntimeStopFailed so a rejected start/stop is
+    announced instead of masquerading as "Lúmina detenida"/"iniciada". (M2) An agent that predates the
+    additive `initializing` field now still blocks re-taps: a `Start` reply of `running` enters
+    `Starting`, and the fallback window is chosen by the reply — RUNTIME_START_GRACE_MS (10 s) when
+    `initializing` is present (confirmed within ~1 s; a telemetry outage hits the 5 s Offline
+    threshold first and cancels it), or RUNTIME_START_FALLBACK_MS (240 s) when only `running` is
+    present. The 240 s bound is the runtime's measured worst case (~21 s model load + up to 180 s
+    BlueALSA sink wait = ~201 s; docs/PERFORMANCE.md §14.3, docs/BLUETOOTH.md §2) plus margin, so it
+    never false-fails a start that is genuinely still initializing. (L1) `onRuntimeToggle` also
+    ignores taps while the device reports initializing (not just during a local transition).
+    (L2) The desktop JPEG writer null-guards `defaultWriteParam`/`createImageOutputStream`.
+    (L3) Moved RuntimeCommand/RuntimeTransition/RuntimeButtonState/runtimeButtonState into
+    RuntimeControlState.kt.
+  rationale: >-
+    The stop reply reflects `systemctl is-active`, so treating every accepted stop as `Stopping`
+    disabled the button forever when the stop actually failed. A failed start was indistinguishable
+    from a stop. And the optimistic `Starting` was gated on `initializing`, so a partially-updated
+    deployment (old agent) silently regressed to the double-send bug. The fallback window is derived
+    from the runtime's own measured timings rather than guessed, per FE-INV-001/FE-INV-062, and is
+    only a last resort because a real failure normally makes the device go offline first. No wire
+    shape changed; no new dependency; all text is es-MX.
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/dashboard/RuntimeControlState.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/dashboard/DashboardUiState.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/dashboard/DashboardViewModel.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/dashboard/DashboardMessages.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/ui/AppRoot.kt
+    - Lumina-BETA-ANDROID/shared/src/commonMain/composeResources/values/strings.xml
+    - Lumina-BETA-ANDROID/shared/src/jvmMain/kotlin/com/korealm/lumina/data/PlatformImagePreparer.jvm.kt
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/ui/dashboard/DashboardReducerTest.kt
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/ui/dashboard/DashboardMessagesTest.kt
+    - Lumina-BETA-ANDROID/shared/src/jvmTest/kotlin/com/korealm/lumina/ui/dashboard/DashboardViewModelTest.kt
+    - Lumina-BETA-ANDROID/docs/API_VERIFICATION.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Re-run `./gradlew :shared:allTests :androidApp:assembleDebug`. On the device confirm: a failed
+    stop (e.g. with the sudoers rule removed) re-enables the button and says "No se pudo detener
+    Lúmina"; a normal start still shows "Iniciando…" until ready.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0038 — Tolerate a null telemetry volume from the device
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0038
+  date: 2026-09-22
+  agent: opencode/deepseek-v4-flash
+  type: fix
+  status: applied
+  invariants:
+    - FE-INV-001
+    - FE-INV-031
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    WireSensors.volume gained a default of -1 so a `null` (or absent) volume is coerced by
+    LuminaJson's coerceInputValues instead of rejecting the datagram. Added StatusDecodeTest cases
+    for `"volume":null` and an absent volume field. No other behaviour changed; StatusMapper still maps
+    the -1 sentinel (and any out-of-range value) to `null` -> the UI shows "—".
+  rationale: >-
+    Field diagnosis: the runtime agent serialized an unknown volume as `"volume":null` (contract §4.1
+    says -1), and WireSensors.volume was a required non-null Int with no default, so
+    decodeFromJsonElement threw -> decodeStatus returned Malformed -> KtorTelemetrySource ignored the
+    frame -> the dashboard showed "Sin Conexión" whenever the BlueALSA mixer was unavailable (runtime
+    stopped and/or earbuds disconnected). Giving the field a default makes the app resilient to the
+    device's actual behaviour; the agent is also corrected to emit -1 (runtime CHG-0093). Confirmed by
+    capturing the live datagram and by the app's own coerceInputValues contract comment.
+  files:
+    - Lumina-BETA-ANDROID/shared/src/commonMain/kotlin/com/korealm/lumina/protocol/WireStatus.kt
+    - Lumina-BETA-ANDROID/shared/src/commonTest/kotlin/com/korealm/lumina/protocol/StatusDecodeTest.kt
+    - Lumina-BETA-ANDROID/docs/API_VERIFICATION.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    Re-run `./gradlew :shared:allTests :androidApp:assembleDebug` and redeploy; with the earbuds off
+    and the runtime stopped the app should connect and show volume "—".
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0039 — Archive: final-state README + contest banner
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0039
+  date: 2026-09-26
+  agent: opencode/deepseek-v4-flash
+  type: docs
+  status: applied
+  invariants:
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    Rewrote README.md as the archival final-state document: an "Archived — built for the Innovatec
+    2026 (InnovaTecNM) contest" banner, a Final state section (what shipped and was verified), a
+    Known limitations section, and a Contest and outcome section (local stage, did not advance). The
+    rest of the README (what it does, tech, layout, getting started, mock server, connecting, docs,
+    contributing) is unchanged. No code changed.
+  rationale: >-
+    The event concluded and the project was not selected; both repositories are being archived as a
+    reference. A future reader needs an unambiguous statement of what the companion client was,
+    what actually worked on-device, and what was deferred.
+  files:
+    - Lumina-BETA-ANDROID/README.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    None. This is the final entry for the archived companion app; the repository is set read-only on
+    GitHub.
 ```

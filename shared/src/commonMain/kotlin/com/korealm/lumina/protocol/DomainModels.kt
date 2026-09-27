@@ -88,13 +88,19 @@ enum class Liveness {
     Offline,
 }
 
-/** Interpreted `status.runtime`. */
+/**
+ * Interpreted `status.runtime`.
+ *
+ * [initializing] is true while the unit is active but not yet reporting a fresh running status
+ * (model load + the BlueALSA sink wait). It drives the "Iniciando…" control state (contract §4.1).
+ */
 data class RuntimeInfo(
     val reachable: Boolean,
     val running: Boolean,
     val uptimeSeconds: Int,
     val sink: SinkState,
     val faceCount: Int,
+    val initializing: Boolean = false,
 )
 
 /** Interpreted `status.core`; `null` means "unknown" (never `0`). */
@@ -150,8 +156,9 @@ data class VolumeState(
     val ok: Boolean,
 )
 
-/** Interpreted `runtime.state`. */
+/** Interpreted `runtime.state`. [initializing] is true while the unit is active but not yet ready. */
 data class RuntimeState(
     val running: Boolean,
     val sink: SinkState,
+    val initializing: Boolean = false,
 )

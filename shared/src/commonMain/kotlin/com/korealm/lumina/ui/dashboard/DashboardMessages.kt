@@ -24,6 +24,15 @@ enum class ControlMessage {
     /** `runtime.stop` succeeded. */
     RuntimeStopped,
 
+    /** `runtime.start` was accepted but the device never confirmed it within the grace window. */
+    RuntimeStartUnconfirmed,
+
+    /** `runtime.start` was rejected: the device replied that the runtime is not running. */
+    RuntimeStartFailed,
+
+    /** `runtime.stop` was rejected: the device replied that the runtime is still running. */
+    RuntimeStopFailed,
+
     /** The token was missing or wrong (contract §4.9); requires the operator to fix Ajustes. */
     Unauthorized,
 
@@ -41,7 +50,9 @@ enum class ControlMessage {
 
     /** True for the failure messages, which the UI styles as errors rather than confirmations. */
     val isError: Boolean
-        get() = this == Unauthorized || this == Busy || this == BadRequest || this == Internal || this == Io
+        get() = this == Unauthorized || this == Busy || this == BadRequest || this == Internal ||
+            this == Io || this == RuntimeStartUnconfirmed || this == RuntimeStartFailed ||
+            this == RuntimeStopFailed
 }
 
 /**
