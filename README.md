@@ -207,3 +207,14 @@ the protocol here; changes start on the runtime side.
 - Build and test with `./gradlew` only.
 - Never hardcode the host, ports, or token.
 - Every new user-facing string is **Spanish** and lives in string resources.
+
+---
+
+## License
+
+The **Lúmina projects are licensed under the GNU General Public License version 3 (GPLv3)** — see
+[`LICENSE`](LICENSE). Copyleft (C) 2026 Lúmina team.
+
+Lúmina itself is GPLv3; **third-party dependencies keep their own licenses** and are used under
+their own terms (Compose Multiplatform, Kotlin, Ktor, Koin, AndroidX/Material3, MiuiX,
+multiplatform-settings, and the rest — see `gradle/libs.versions.toml`).

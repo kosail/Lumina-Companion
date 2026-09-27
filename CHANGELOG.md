@@ -1914,4 +1914,32 @@
   follow_up: >-
     None. This is the final entry for the archived companion app; the repository is set read-only on
     GitHub.
+
+# ---------------------------------------------------------------------------
+# CHG-FE-0040 — License the project under GPLv3
+# ---------------------------------------------------------------------------
+- id: CHG-FE-0040
+  date: 2026-09-26
+  agent: opencode/deepseek-v4-flash
+  type: chore
+  status: applied
+  invariants:
+    - FE-INV-061
+  supersedes: null
+  summary: >-
+    Added a LICENSE file (verbatim GNU GPL version 3 text, Copyright (C) 2026 Lúmina team) and
+    licensed the companion app GPL-3.0-only, and added a README "License" section stating that
+    Lúmina is GPLv3 (permanently) while third-party dependencies keep their own licenses. No code
+    changed.
+  rationale: >-
+    The contest concluded and the team chose a permanent GPLv3 license for both Lúmina projects.
+    The app has no copyleft dependencies, so GPLv3 is a pure licensing choice; declaring it keeps
+    both repositories consistent.
+  files:
+    - Lumina-BETA-ANDROID/LICENSE
+    - Lumina-BETA-ANDROID/README.md
+    - Lumina-BETA-ANDROID/CHANGELOG.md
+  approvals: [user]
+  follow_up: >-
+    None. The license is permanent GPLv3.
 ```
