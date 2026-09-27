@@ -14,9 +14,13 @@ recognize. Everything runs **on the local network**. No cloud, no accounts, no i
 
 I know the UI is not the prettiest one. We focused on functionality and, if we managed to pass to the national contest, the app was about to be redesigned. We did not, so that is why the current app looks not really user friendly.
 
+> [!IMPORTANT]
 > **Accessibility is a requirement here, not a nice-to-have.** Our users cannot see the screen, so
 > every screen and control must work with a screen reader (TalkBack), use large touch targets, and
 > speak its state changes in Spanish.
+
+> [!WARNING]
+> I want to clear state that this project was developed entirely using AI, as it was a proof of concept of our idea in real hardware. I strongly suggest you to take a deeper look into AGENTS, INVARIANTS, SPECS, etc., and be critical against this codebase.
 
 ![App screenshot](.github/img/screenshot.webp)
 
@@ -71,8 +75,6 @@ Lumina-BETA-ANDROID/
 
 - **Android Studio** (recommended), or a JDK compatible with the Android Gradle Plugin.
 - An **Android SDK** with the platform matching `compileSdk` in `libs.versions.toml`.
-- **Node 18+** — only for the mock device server (see below).
-- The Android SDK location is read from `local.properties` (not committed).
 
 ### Build and run
 
@@ -138,11 +140,11 @@ If you want the deeper detail behind the app:
 - [`PLAN.md`](PLAN.md) — how the app was built, phase by phase.
 - [`INVARIANTS.md`](INVARIANTS.md), [`AGENTS.md`](AGENTS.md) and [`CHANGELOG.md`](CHANGELOG.md) —
   the engineering notes and rules we worked under.
-- [`../Lumina-BETA-RPI-2W/docs/API_CONTRACT.md`](../Lumina-BETA-RPI-2W/docs/API_CONTRACT.md) — the
+- [`docs/API_CONTRACT.md`](https://github.com/kosail/Lumina/blob/main/docs/API_CONTRACT.md) — the
   wire protocol, owned by the runtime repository (read-only here).
 
-The wire protocol is owned by the **runtime repository**. This app only consumes it — never change
-the protocol here; changes start on the runtime side.
+The wire protocol is owned by the [runtime repository](https://github.com/kosail/Lumina). This app
+only consumes it — never change the protocol here; changes start on the runtime side.
 
 ## Contributing
 
